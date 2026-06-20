@@ -235,17 +235,22 @@ function App() {
       correctAnswers: prev.correctAnswers + (isCorrect ? 1 : 0),
       dailyQuestions: prev.dailyQuestions + 1,
     }));
+  };
 
-    setTimeout(() => {
-      if (questions.length > 1) {
-        const currentIndex = questions.findIndex(
-          (q) => q.id === currentQuestion.id
-        );
-        const nextIndex = (currentIndex + 1) % questions.length;
-        setCurrentQuestion(questions[nextIndex]);
-        setAnswerResult(null);
-      }
-    }, 3000);
+  const goToNextQuestion = () => {
+    const currentIndex = questions.findIndex(
+      (q) => q.id === currentQuestion.id
+    );
+
+    if (currentIndex === questions.length - 1) {
+      // 最後の問題の場合
+      setCurrentView('themeComplete');
+    } else {
+      // 次の問題へ
+      const nextIndex = currentIndex + 1;
+      setCurrentQuestion(questions[nextIndex]);
+      setAnswerResult(null);
+    }
   };
 
   // ログイン画面
@@ -593,8 +598,102 @@ function App() {
                 >
                   <h3>{answerResult.isCorrect ? '🎉 正解！' : '❌ 不正解'}</h3>
                   <p>{currentQuestion.explanation}</p>
+                  <button onClick={goToNextQuestion} className="btn btn-next">
+                    {questions.findIndex((q) => q.id === currentQuestion.id) === questions.length - 1
+                      ? 'テーマ完了'
+                      : '次の問題へ →'}
+                  </button>
                 </div>
               )}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // テーマ完了画面
+  if (currentView === 'themeComplete') {
+    const accuracy =
+      userStats.questionsAnswered > 0
+        ? Math.round(
+            (userStats.correctAnswers / userStats.questionsAnswered) * 100
+          )
+        : 0;
+
+    return (
+      <div className="app">
+        <header className="header">
+          <div className="container">
+            <span className="logo">🏯</span>
+            <h1>京都検定3級</h1>
+          </div>
+        </header>
+
+        <main className="main">
+          <div className="container">
+            <div className="card">
+              <div
+                className="empty-state"
+                style={{ padding: '3rem', textAlign: 'center' }}
+              >
+                <h2 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>
+                  🎉 テーマ完了！
+                </h2>
+                <p style={{ fontSize: '1.125rem', marginBottom: '2rem', color: '#666' }}>
+                  {selectedTheme?.name} の学習が完了しました
+                </p>
+
+                <div
+                  style={{
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    borderRadius: '0.5rem',
+                    padding: '1.5rem',
+                    marginBottom: '2rem',
+                    textAlign: 'center',
+                  }}
+                >
+                  <p style={{ color: '#166534', marginBottom: '0.5rem' }}>
+                    このセッションの成績
+                  </p>
+                  <strong
+                    style={{
+                      fontSize: '1.875rem',
+                      color: '#166534',
+                      display: 'block',
+                    }}
+                  >
+                    {userStats.questionsAnswered} 問 / {userStats.correctAnswers} 正解
+                  </strong>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                  }}
+                >
+                  <button
+                    onClick={() => setCurrentView('themes')}
+                    className="btn btn-primary"
+                  >
+                    他のテーマを選択
+                  </button>
+                  <button
+                    onClick={() => setCurrentView('dashboard')}
+                    className="btn"
+                    style={{
+                      background: '#f3f4f6',
+                      color: '#374151',
+                      border: '1px solid #d1d5db',
+                    }}
+                  >
+                    ダッシュボードに戻る
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </main>
