@@ -1,0 +1,132 @@
+{
+  "projectName": "京都検定3級 Web問題集",
+  "projectRoot": "./",
+
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev)",
+      "Bash(npm run build)",
+      "Bash(npm install)",
+      "Bash(npm install *)",
+      "Read(src/**)",
+      "Read(public/**)",
+      "Read(docs/**)",
+      "Read(.env.example)",
+      "Read(package.json)",
+      "Write(src/**)",
+      "Write(public/**)"
+    ],
+    "deny": ["Write(.env)", "Bash(rm -rf *)", "Bash(git push)"]
+  },
+
+  "conventions": {
+    "components": {
+      "path": "src/components/",
+      "naming": "PascalCase",
+      "extension": ".tsx",
+      "style": "React Hooks + TypeScript"
+    },
+    "pages": {
+      "path": "src/pages/",
+      "naming": "PascalCase"
+    },
+    "hooks": {
+      "path": "src/hooks/",
+      "naming": "useXxxx",
+      "extension": ".ts"
+    },
+    "utils": {
+      "path": "src/utils/",
+      "naming": "camelCase",
+      "extension": ".ts"
+    },
+    "types": {
+      "path": "src/types/",
+      "naming": "PascalCase",
+      "extension": ".ts"
+    },
+    "styles": {
+      "path": "src/styles/",
+      "naming": "camelCase.css",
+      "note": "ピュアCSS（TailwindCSS不使用）"
+    }
+  },
+
+  "codeStyle": {
+    "language": "TypeScript + JavaScript（段階的に統一）",
+    "framework": "React 18+",
+    "stateManagement": "React Hooks (useState, useEffect, useContext)",
+    "componentStyle": "関数型コンポーネント必須",
+    "database": "Supabase (PostgreSQL)",
+    "api": "Supabase REST API (@supabase/supabase-js)",
+    "styling": "ピュアCSS（App.css）",
+    "formatting": "2スペースインデント"
+  },
+
+  "environment": {
+    "development": {
+      "url": "http://localhost:5173",
+      "supabaseUrl": "https://brtxljbxesbuxpstnejp.supabase.co",
+      "supabaseAnonKey": "（.envから読み込む）"
+    },
+    "production": {
+      "note": "未設定（本番デプロイ前に設定予定）"
+    }
+  },
+
+  "supabase": {
+    "url": "https://brtxljbxesbuxpstnejp.supabase.co",
+    "tablesStatus": {
+      "categories": "✅ 作成済み（RLS無効化）",
+      "themes": "✅ 作成済み（RLS無効化）",
+      "questions": "✅ 作成済み（RLS無効化）",
+      "answer_history": "✅ 作成済み（RLS有効）",
+      "user_profiles": "✅ 作成済み（RLS有効）",
+      "bookmarks": "✅ 作成済み（RLS有効）",
+      "study_sessions": "✅ 作成済み（RLS有効）",
+      "subscriptions": "✅ 作成済み（RLS有効）",
+      "payments": "✅ 作成済み（RLS有効）",
+      "announcements": "✅ 作成済み",
+      "system_settings": "✅ 作成済み"
+    },
+    "note": "本番運用時はcategories, themes, questionsのRLSを有効化する"
+  },
+
+  "gitIgnore": [
+    "node_modules/",
+    "dist/",
+    ".env",
+    ".env.local",
+    ".env.production",
+    ".DS_Store",
+    "*.log"
+  ],
+
+  "scripts": {
+    "dev": "npm run dev（StackBlitzで自動起動、プレビュー表示）",
+    "build": "npm run build（本番ビルド）"
+  },
+
+  "importantPaths": {
+    "mainComponent": "src/App.tsx",
+    "supabaseClient": "src/supabaseClient.js",
+    "globalStyles": "src/App.css",
+    "handoffDocument": "docs/handoff.md",
+    "systemOverview": "docs/system-overview.md"
+  },
+
+  "restrictedActions": [
+    "APIキーをソースに直書きする（.envから読み込むこと）",
+    "RLSを本番で無効化したまま運用する",
+    "categories, themes, questionsをDELETEする（バックアップ取得後のみ）",
+    ".envファイルの変更・アップロード"
+  ],
+
+  "qualityGates": {
+    "beforeCommit": [
+      "StackBlitzで動作確認",
+      "Supabase接続確認",
+      "ブラウザコンソールにエラーなし"
+    ]
+  }
+}
