@@ -1,6 +1,6 @@
 # 京都検定 3 級 Web 問題集アプリ - 引き継ぎ資料
 
-**最終更新**: 2026-07-14（Claude Code により更新）
+**最終更新**: 2026-07-18（Antigravity により更新）
 
 複数の AI エージェント / 開発者が並行して作業する前提の引き継ぎ資料です。
 **必ず最初にこのファイルを読み、作業後は本ファイルの「現在の状況」を更新してください。**
@@ -47,7 +47,7 @@
 |---|---|---|
 | categories | 作成済み・**RLS 有効** | 6 件（全カテゴリ投入済み） |
 | themes | 作成済み・**RLS 有効** | **8 件のみ**（本来 25 件。ID 1-8 のみ投入済み） |
-| questions | 作成済み・**RLS 有効** | **0 件**（旧 DB の 80 問は未復元） |
+| questions | 作成済み・**RLS 有効** | **0 件**（INSERT SQL は `docs/questions_insert_theme1_8.sql` に作成済み。Supabase SQL Editor での実行待ち） |
 | answer_history | 作成済み・RLS 有効 | 0 件 |
 | user_profiles | 作成済み・RLS 有効 | 0 件 |
 
@@ -70,6 +70,14 @@ bookmarks, study_sessions, subscriptions, payments, announcements, system_settin
 ---
 
 ## 完了済み作業
+
+### 2026-07-18 の作業（Antigravity）
+
+5. **Task 3: 問題データ INSERT SQL 作成** — `docs/questions_insert_theme1_8.sql` に保存済み
+   - テーマ ID 1-8 に対応する各 10 問、合計 80 問の INSERT 文
+   - Supabase の実テーブル（themes）を照合し category_id・theme_id を正確に設定
+   - テーマ内容: 四神相応・嵐山渡月橋・嵯峨野観光鉄道・清水寺・伏見稲荷大社・京野菜・祇園祭・金閣寺
+   - **⚠️ Supabase SQL Editor での実行はユーザーが行う必要あり（下記「今後のタスク」参照）**
 
 ### 2026-06〜07 の作業（Claude Code）
 
@@ -96,6 +104,20 @@ bookmarks, study_sessions, subscriptions, payments, announcements, system_settin
 1. StackBlitz でアプリを起動し、ログイン → ダッシュボードでカテゴリ 6 件が表示されるか確認
 2. 表示されない場合は上記の「Public read」ポリシー SQL を Supabase SQL Editor で実行
 3. 確認できたらこのファイルを更新
+
+### Task 3（続き）: 問題データを Supabase に投入【すぐ実行可能】
+
+`docs/questions_insert_theme1_8.sql` の内容を Supabase SQL Editor に貼り付けて実行する。
+実行後、以下で投入確認:
+
+```sql
+SELECT theme_id, COUNT(*) as count
+FROM questions
+WHERE theme_id BETWEEN 1 AND 8
+GROUP BY theme_id
+ORDER BY theme_id;
+-- 各テーマ 10 件ずつ、合計 80 件が返れば成功
+```
 
 ### Task 2: themes の残り 17 件を投入
 
