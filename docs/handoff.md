@@ -47,7 +47,7 @@
 |---|---|---|
 | categories | 作成済み・**RLS 有効** | 6 件（全カテゴリ投入済み） |
 | themes | 作成済み・**RLS 有効** | **8 件のみ**（本来 25 件。ID 1-8 のみ投入済み） |
-| questions | 作成済み・**RLS 有効** | **0 件**（INSERT SQL は `docs/questions_insert_theme1_8.sql` に作成済み。Supabase SQL Editor での実行待ち） |
+| questions | 作成済み・**RLS 有効** | **80 件**（テーマ ID 1-8、各 10 問。2026-07-18 投入完了） |
 | answer_history | 作成済み・RLS 有効 | 0 件 |
 | user_profiles | 作成済み・RLS 有効 | 0 件 |
 
