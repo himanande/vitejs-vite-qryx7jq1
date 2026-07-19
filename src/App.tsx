@@ -368,7 +368,6 @@ function App() {
             </div>
 
             <div className="card">
-              // ダッシュボード画面の card-header 部分を以下に置き換え
               <div className="card-header">
                 <h2>学習カテゴリ</h2>
                 <p>
@@ -376,21 +375,6 @@ function App() {
                     ? 'データを読み込み中...'
                     : `${categories.length}個のカテゴリが利用可能です`}
                 </p>
-                {/* 診断ボタンを一時追加 */}
-                <button
-                  onClick={debugData}
-                  style={{
-                    background: '#fbbf24',
-                    color: 'white',
-                    border: 'none',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.25rem',
-                    cursor: 'pointer',
-                    marginTop: '0.5rem',
-                  }}
-                >
-                  🔍 データ診断
-                </button>
               </div>
               <div className="card-content">
                 {loading ? (
@@ -529,7 +513,18 @@ function App() {
     return (
       <div className="app">
         <header className="header">
-          // ... 既存の問題表示コード（そのまま）
+          <div className="container">
+            <button
+              onClick={() => setCurrentView('themes')}
+              className="back-btn"
+            >
+              ← 戻る
+            </button>
+            <div className="header-left">
+              <span className="logo">🏯</span>
+              <h1>{selectedTheme?.name}</h1>
+            </div>
+          </div>
         </header>
 
         <main className="main">
