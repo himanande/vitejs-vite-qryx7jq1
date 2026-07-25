@@ -1,6 +1,6 @@
 # 京都検定 3 級 Web 問題集アプリ - 引き継ぎ資料
 
-**最終更新**: 2026-07-18（Antigravity により更新）
+**最終更新**: 2026-07-25（Antigravity により更新）
 
 複数の AI エージェント / 開発者が並行して作業する前提の引き継ぎ資料です。
 **必ず最初にこのファイルを読み、作業後は本ファイルの「現在の状況」を更新してください。**
@@ -11,9 +11,7 @@
 
 - **プロジェクト名**: 京都検定 3 級 Web 問題集
 - **技術スタック**: React + TypeScript + Vite + Supabase (PostgreSQL)
-- **リポジトリ（正）**: https://github.com/himanande/vitejs-vite-qryx7jq1 （public / main ブランチ）
-- **開発環境**: StackBlitz（GitHub から開く: https://stackblitz.com/~/github.com/himanande/vitejs-vite-qryx7jq1 ）
-- **進捗**: 約 50%（後述の DB 移行によりデータが一部巻き戻り）
+- **進捗**: 約 85%（DB問題534問投入完了・全カテゴリ有効化）
 
 ### ⚠️ 開発フローの重要ルール
 
@@ -45,21 +43,13 @@
 
 | テーブル | 状態 | データ |
 |---|---|---|
-| categories | 作成済み・**RLS 有効・GRANT済み** | 6 件 |
-| themes | 作成済み・**RLS 有効・GRANT済み** | **25 件**（全テーマ投入完了 2026-07-19） |
-| questions | 作成済み・**RLS 有効・GRANT済み** | **80 件**（テーマ ID 1-8、各 10 問） |
+| categories | 作成済み・**RLS有効・Public Readポリシー完了** | 6 件 |
+| themes | 作成済み・**RLS有効・Public Readポリシー完了** | 24 件（全テーマ整理・投入完了） |
+| questions | 作成済み・**RLS有効・Public Readポリシー完了** | **534 件**（全テーマ投入完了 2026-07-25） |
 | answer_history | 作成済み・RLS 有効 | 0 件 |
 | user_profiles | 作成済み・RLS 有効 | 0 件 |
 
-**⚠️ 最重要の未確認事項**: テーブル作成時に RLS を有効にしたが、**SELECT を許可するポリシーを 1 つも作っていない**。
-つまり anon key からの読み取りは全テーブルでブロックされている可能性が高い。
-アプリが「Supabase 接続を確認してください」と表示される場合、まずこれを疑うこと。修正 SQL:
-
-```sql
--- 公開読み取りポリシー（コンテンツ系テーブル）
-CREATE POLICY "Public read" ON categories FOR SELECT USING (true);
-CREATE POLICY "Public read" ON themes FOR SELECT USING (true);
-CREATE POLICY "Public read" ON questions FOR SELECT USING (true);
+**✅ RLS ポリシー状況**: `Public read` ポリシー（SELECT USING (true)）の作成が完了し、`categories`, `themes`, `questions` は anon キーで問題なく全件取得可能です。
 ```
 
 ### スキーマ

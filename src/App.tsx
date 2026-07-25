@@ -58,6 +58,13 @@ function App() {
     studyStreak: 0,
     dailyQuestions: 0,
   });
+  const [sessionStats, setSessionStats] = useState({
+    total: 0,
+    correct: 0,
+  });
+  const [selectedQuestionCount, setSelectedQuestionCount] = useState<number>(10); // 0は全問
+  const [selectedDifficulty, setSelectedDifficulty] = useState<number>(0); // 0はすべて
+  const [isSetupReady, setIsSetupReady] = useState(false);
   const [answerResult, setAnswerResult] = useState<any>(null);
 
   // データ取得関数
@@ -79,53 +86,6 @@ function App() {
     }
   };
 
-  // 診断用関数を追加
-  const debugData = async () => {
-    console.log('=== データベース診断開始 ===');
-
-    try {
-      // カテゴリ確認
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*')
-        .order('display_order');
-
-      console.log('📂 カテゴリ数:', categoriesData?.length);
-      console.log('📂 カテゴリ一覧:', categoriesData);
-
-      // テーマ確認
-      const { data: themesData, error: themesError } = await supabase
-        .from('themes')
-        .select('*')
-        .order('category_id, display_order');
-
-      console.log('🏷️ テーマ数:', themesData?.length);
-      console.log('🏷️ テーマ一覧:', themesData);
-
-      // 問題確認
-      const { data: questionsData, error: questionsError } = await supabase
-        .from('questions')
-        .select('*');
-
-      console.log('❓ 問題数:', questionsData?.length);
-      console.log('❓ 問題一覧:', questionsData);
-
-      // テーマ別問題数確認
-      if (questionsData && themesData) {
-        themesData.forEach((theme) => {
-          const themeQuestions = questionsData.filter(
-            (q) => q.theme_id === theme.id
-          );
-          console.log(`🎯 テーマ "${theme.name}": ${themeQuestions.length}問`);
-        });
-      }
-    } catch (error) {
-      console.error('診断エラー:', error);
-    }
-
-    console.log('=== 診断完了 ===');
-  };
-
   const loadThemes = async (categoryId: number) => {
     try {
       const { data, error } = await supabase
@@ -142,29 +102,54 @@ function App() {
     }
   };
 
-  const loadQuestions = async (themeId: number) => {
+  // クイズ開始関数（フィルタリングと出題数の制限）
+  const startQuiz = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('questions')
         .select('*')
-        .eq('theme_id', themeId)
         .eq('is_active', true);
 
+      if (selectedTheme) {
+        query = query.eq('theme_id', selectedTheme.id);
+      } else if (selectedCategory) {
+        query = query.eq('category_id', selectedCategory.id);
+      }
+
+      if (selectedDifficulty > 0) {
+        query = query.eq('difficulty_level', selectedDifficulty);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
 
-      console.log(`テーマID ${themeId} の問題数: ${data?.length || 0}`);
+      let filteredQuestions = data || [];
 
-      setQuestions(data || []);
-      if (data && data.length > 0) {
-        setCurrentQuestion(data[0]);
+      // 配列のランダムシャッフル
+      filteredQuestions = [...filteredQuestions].sort(() => Math.random() - 0.5);
+
+      // 出題数の制限
+      if (selectedQuestionCount > 0 && filteredQuestions.length > selectedQuestionCount) {
+        filteredQuestions = filteredQuestions.slice(0, selectedQuestionCount);
+      }
+
+      setQuestions(filteredQuestions);
+      setSessionStats({ total: 0, correct: 0 });
+      setAnswerResult(null);
+
+      if (filteredQuestions.length > 0) {
+        setCurrentQuestion(filteredQuestions[0]);
       } else {
-        // 問題がない場合の処理
         setCurrentQuestion(null);
       }
+      setCurrentView('questions');
     } catch (err) {
-      console.error('Error loading questions:', err);
+      console.error('Error starting quiz:', err);
       setQuestions([]);
       setCurrentQuestion(null);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -182,10 +167,10 @@ function App() {
 
     setUser(userData);
     setUserStats({
-      questionsAnswered: 15,
-      correctAnswers: 12,
-      studyStreak: 3,
-      dailyQuestions: userData.isPremium ? 25 : 3,
+      questionsAnswered: 0,
+      correctAnswers: 0,
+      studyStreak: 1,
+      dailyQuestions: 0,
     });
 
     setCurrentView('dashboard');
@@ -203,6 +188,7 @@ function App() {
     setSelectedCategory(null);
     setSelectedTheme(null);
     setAnswerResult(null);
+    setSessionStats({ total: 0, correct: 0 });
   };
 
   const handleCategorySelect = async (category: Category) => {
@@ -211,11 +197,42 @@ function App() {
     await loadThemes(category.id);
   };
 
-  const handleThemeSelect = async (theme: Theme) => {
+  const handleThemeSelect = (theme: Theme) => {
     setSelectedTheme(theme);
-    setCurrentView('questions');
-    await loadQuestions(theme.id);
-    setAnswerResult(null);
+    setSelectedQuestionCount(10);
+    setSelectedDifficulty(0);
+    setIsSetupReady(false);
+    setCurrentView('quizSetup');
+
+    setTimeout(() => {
+      setIsSetupReady(true);
+    }, 300);
+  };
+
+  const handleCategoryQuizSetup = (category: Category) => {
+    setSelectedCategory(category);
+    setSelectedTheme(null);
+    setSelectedQuestionCount(10);
+    setSelectedDifficulty(0);
+    setIsSetupReady(false);
+    setCurrentView('quizSetup');
+
+    setTimeout(() => {
+      setIsSetupReady(true);
+    }, 300);
+  };
+
+  const handleAllQuizSetup = () => {
+    setSelectedCategory(null);
+    setSelectedTheme(null);
+    setSelectedQuestionCount(10);
+    setSelectedDifficulty(0);
+    setIsSetupReady(false);
+    setCurrentView('quizSetup');
+
+    setTimeout(() => {
+      setIsSetupReady(true);
+    }, 300);
   };
 
   const handleAnswer = (selectedOption: number) => {
@@ -234,6 +251,11 @@ function App() {
       questionsAnswered: prev.questionsAnswered + 1,
       correctAnswers: prev.correctAnswers + (isCorrect ? 1 : 0),
       dailyQuestions: prev.dailyQuestions + 1,
+    }));
+
+    setSessionStats((prev) => ({
+      total: prev.total + 1,
+      correct: prev.correct + (isCorrect ? 1 : 0),
     }));
   };
 
@@ -367,6 +389,27 @@ function App() {
               </div>
             </div>
 
+            {/* 総合演習スタートカード */}
+            <div className="card" style={{ marginBottom: '1.5rem', background: 'linear-gradient(135deg, #fef2f2 0%, #ffe4e6 100%)', border: '1px solid #fecdd3' }}>
+              <div className="card-content" style={{ display: 'flex', alignItems: 'center', justify_content: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', color: '#9f1239', fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                    🔥 全カテゴリ総合ランダム演習
+                  </h3>
+                  <p style={{ color: '#881337', fontSize: '0.9rem' }}>
+                    収録されている全530問以上の問題から出題数・難易度を指定して挑戦！
+                  </p>
+                </div>
+                <button
+                  onClick={handleAllQuizSetup}
+                  className="btn btn-primary"
+                  style={{ background: '#e11d48', borderColor: '#be123c', padding: '0.75rem 1.5rem', fontSize: '1rem', fontWeight: 'bold' }}
+                >
+                  ⚙️ 条件を設定してスタート →
+                </button>
+              </div>
+            </div>
+
             <div className="card">
               <div className="card-header">
                 <h2>学習カテゴリ</h2>
@@ -432,10 +475,27 @@ function App() {
 
         <main className="main">
           <div className="container">
+            <nav className="breadcrumb" aria-label="Breadcrumb">
+              <button onClick={() => setCurrentView('dashboard')}>ホーム</button>
+              <span className="separator">/</span>
+              <span className="current">{selectedCategory?.name}</span>
+            </nav>
+
             <div className="card">
-              <div className="card-header">
-                <h2>テーマ選択</h2>
-                <p>{themes.length}個のテーマが利用可能です</p>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h2>テーマ選択</h2>
+                  <p>{themes.length}個のテーマが利用可能です</p>
+                </div>
+                {selectedCategory && (
+                  <button
+                    onClick={() => handleCategoryQuizSetup(selectedCategory)}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.9rem', padding: '0.6rem 1.2rem' }}
+                  >
+                    ⚡ 「{selectedCategory.name}」全体から演習 →
+                  </button>
+                )}
               </div>
 
               <div className="card-content">
@@ -462,10 +522,134 @@ function App() {
     );
   }
 
-  // 問題画面
+  // 演習条件設定画面
+  if (currentView === 'quizSetup') {
+    const setupTitle = selectedTheme
+      ? selectedTheme.name
+      : selectedCategory
+      ? `${selectedCategory.name} （総合）`
+      : '全カテゴリ総合ランダム演習';
+
+    const setupSubtitle = selectedTheme
+      ? '選択したテーマの問題から出題されます'
+      : selectedCategory
+      ? '選択したカテゴリ内の全テーマからランダムに出題されます'
+      : 'データベース内の全530問以上からランダムに出題されます';
+
+    return (
+      <div className="app">
+        <header className="header">
+          <div className="container">
+            <button
+              onClick={() => setCurrentView(selectedCategory ? 'themes' : 'dashboard')}
+              className="back-btn"
+            >
+              ← 戻る
+            </button>
+            <div className="header-left">
+              <span className="logo">🏯</span>
+              <h1>{setupTitle}</h1>
+            </div>
+          </div>
+        </header>
+
+        <main className="main">
+          <div className="container">
+            <nav className="breadcrumb" aria-label="Breadcrumb">
+              <button onClick={() => setCurrentView('dashboard')}>ホーム</button>
+              {selectedCategory && (
+                <>
+                  <span className="separator">/</span>
+                  <button onClick={() => setCurrentView('themes')}>{selectedCategory.name}</button>
+                </>
+              )}
+              <span className="separator">/</span>
+              <span className="current">{setupTitle}</span>
+            </nav>
+
+            <div className="card">
+              <div className="card-header" style={{ background: '#fafafa', borderBottom: '1px solid #e5e7eb' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+                  <span style={{ fontSize: '1.5rem' }}>⚙️</span>
+                  <h2 style={{ fontSize: '1.25rem', color: '#111827' }}>演習条件の設定</h2>
+                </div>
+                <p style={{ color: '#6b7280', fontSize: '0.95rem' }}>{setupSubtitle}</p>
+              </div>
+
+              <div className="card-content" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', padding: '2rem 1.5rem' }}>
+                {/* 出題数選択 */}
+                <div className="setup-group">
+                  <label className="setup-label">📌 出題数を選択</label>
+                  <div className="chip-group">
+                    {[
+                      { label: '5問', value: 5 },
+                      { label: '10問', value: 10 },
+                      { label: '20問', value: 20 },
+                      { label: '全問チャレンジ', value: 0 },
+                    ].map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setSelectedQuestionCount(item.value)}
+                        className={`chip-btn ${selectedQuestionCount === item.value ? 'active' : ''}`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 難易度選択 */}
+                <div className="setup-group">
+                  <label className="setup-label">🎯 難易度を選択</label>
+                  <div className="chip-group">
+                    {[
+                      { label: 'すべて', value: 0 },
+                      { label: '★1 基礎', value: 1 },
+                      { label: '★2 標準', value: 2 },
+                      { label: '★3 難問', value: 3 },
+                    ].map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setSelectedDifficulty(item.value)}
+                        className={`chip-btn ${selectedDifficulty === item.value ? 'active' : ''}`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ paddingTop: '1.5rem', borderTop: '1px solid #e5e7eb' }}>
+                  <button
+                    onClick={startQuiz}
+                    disabled={loading || !isSetupReady}
+                    className="btn btn-primary"
+                    style={{
+                      width: '100%',
+                      padding: '1rem 1.5rem',
+                      fontSize: '1.15rem',
+                      fontWeight: 'bold',
+                      borderRadius: '0.75rem',
+                      boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)',
+                      opacity: isSetupReady ? 1 : 0.7,
+                    }}
+                  >
+                    {loading ? '問題読み込み中...' : '🚀 この設定で演習スタート！'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   // 問題画面
   if (currentView === 'questions') {
-    // 問題がない場合の表示を追加
+    // 問題がない場合の表示
     if (!currentQuestion || questions.length === 0) {
       return (
         <div className="app">
@@ -486,6 +670,14 @@ function App() {
 
           <main className="main">
             <div className="container">
+              <nav className="breadcrumb" aria-label="Breadcrumb">
+                <button onClick={() => setCurrentView('dashboard')}>ホーム</button>
+                <span className="separator">/</span>
+                <button onClick={() => setCurrentView('themes')}>{selectedCategory?.name}</button>
+                <span className="separator">/</span>
+                <span className="current">{selectedTheme?.name}</span>
+              </nav>
+
               <div className="card">
                 <div
                   className="empty-state"
@@ -509,13 +701,17 @@ function App() {
       );
     }
 
-    // 問題がある場合の既存表示（条件文を修正）
+    const currentIndex = questions.findIndex(
+      (q) => q.id === currentQuestion.id
+    );
+    const progressPercent = Math.round(((currentIndex + 1) / questions.length) * 100);
+
     return (
       <div className="app">
         <header className="header">
           <div className="container">
             <button
-              onClick={() => setCurrentView('themes')}
+              onClick={() => setCurrentView('quizSetup')}
               className="back-btn"
             >
               ← 戻る
@@ -529,7 +725,28 @@ function App() {
 
         <main className="main">
           <div className="container">
-            <div className="card">
+            <nav className="breadcrumb" aria-label="Breadcrumb">
+              <button onClick={() => setCurrentView('dashboard')}>ホーム</button>
+              <span className="separator">/</span>
+              <button onClick={() => setCurrentView('themes')}>{selectedCategory?.name}</button>
+              <span className="separator">/</span>
+              <span className="current">{selectedTheme?.name}</span>
+            </nav>
+
+            <div className="card" style={{ padding: '1.5rem' }}>
+              <div className="progress-section">
+                <div className="progress-text">
+                  <span>進捗状況 ({progressPercent}%)</span>
+                  <span>第 {currentIndex + 1} 問 / 全 {questions.length} 問</span>
+                </div>
+                <div className="progress-bar-container">
+                  <div
+                    className="progress-bar-fill"
+                    style={{ width: `${progressPercent}%` }}
+                  ></div>
+                </div>
+              </div>
+
               <div className="question-badges">
                 <span className="difficulty-badge">
                   難易度 {currentQuestion.difficulty_level}
@@ -594,7 +811,7 @@ function App() {
                   <h3>{answerResult.isCorrect ? '🎉 正解！' : '❌ 不正解'}</h3>
                   <p>{currentQuestion.explanation}</p>
                   <button onClick={goToNextQuestion} className="btn btn-next">
-                    {questions.findIndex((q) => q.id === currentQuestion.id) === questions.length - 1
+                    {currentIndex === questions.length - 1
                       ? 'テーマ完了'
                       : '次の問題へ →'}
                   </button>
@@ -609,12 +826,19 @@ function App() {
 
   // テーマ完了画面
   if (currentView === 'themeComplete') {
-    const accuracy =
-      userStats.questionsAnswered > 0
-        ? Math.round(
-            (userStats.correctAnswers / userStats.questionsAnswered) * 100
-          )
+    const sessionAccuracy =
+      sessionStats.total > 0
+        ? Math.round((sessionStats.correct / sessionStats.total) * 100)
         : 0;
+
+    let rankBadge = { text: '💪 チャレンジ達成！', color: '#ea580c', bg: '#fff7ed', border: '#ffedd5', icon: '🎯' };
+    if (sessionAccuracy === 100) {
+      rankBadge = { text: '🏆 満点達成！完璧です！', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0', icon: '👑' };
+    } else if (sessionAccuracy >= 80) {
+      rankBadge = { text: '🎉 合格ライン達成！京都通！', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0', icon: '🌟' };
+    } else if (sessionAccuracy >= 60) {
+      rankBadge = { text: '👍 もう一歩！復習しよう！', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', icon: '📖' };
+    }
 
     return (
       <div className="app">
@@ -627,65 +851,67 @@ function App() {
 
         <main className="main">
           <div className="container">
-            <div className="card">
-              <div
-                className="empty-state"
-                style={{ padding: '3rem', textAlign: 'center' }}
-              >
-                <h2 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>
-                  🎉 テーマ完了！
-                </h2>
-                <p style={{ fontSize: '1.125rem', marginBottom: '2rem', color: '#666' }}>
-                  {selectedTheme?.name} の学習が完了しました
-                </p>
+            <nav className="breadcrumb" aria-label="Breadcrumb">
+              <button onClick={() => setCurrentView('dashboard')}>ホーム</button>
+              <span className="separator">/</span>
+              <button onClick={() => setCurrentView('themes')}>{selectedCategory?.name}</button>
+              <span className="separator">/</span>
+              <span className="current">{selectedTheme?.name} (完了)</span>
+            </nav>
 
-                <div
-                  style={{
-                    background: '#f0fdf4',
-                    border: '1px solid #bbf7d0',
-                    borderRadius: '0.5rem',
-                    padding: '1.5rem',
-                    marginBottom: '2rem',
-                    textAlign: 'center',
-                  }}
-                >
-                  <p style={{ color: '#166534', marginBottom: '0.5rem' }}>
-                    このセッションの成績
-                  </p>
-                  <strong
-                    style={{
-                      fontSize: '1.875rem',
-                      color: '#166534',
-                      display: 'block',
-                    }}
-                  >
-                    {userStats.questionsAnswered} 問 / {userStats.correctAnswers} 正解
-                  </strong>
+            <div className="card theme-complete-card">
+              <div className="theme-complete-content">
+                <div className="rank-badge-container">
+                  <span className="rank-icon">{rankBadge.icon}</span>
+                  <span className="rank-badge" style={{ color: rankBadge.color, backgroundColor: rankBadge.bg, borderColor: rankBadge.border }}>
+                    {rankBadge.text}
+                  </span>
                 </div>
 
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem',
-                  }}
-                >
+                <h2 className="complete-title">{selectedTheme?.name} 完了！</h2>
+                <p className="complete-sub">お疲れ様でした！今回の演習結果です。</p>
+
+                <div className="score-summary-card" style={{ background: rankBadge.bg, borderColor: rankBadge.border }}>
+                  <div className="score-main">
+                    <span className="score-label">正解率</span>
+                    <strong className="score-percent" style={{ color: rankBadge.color }}>
+                      {sessionAccuracy}%
+                    </strong>
+                  </div>
+                  <div className="score-details-grid">
+                    <div className="score-detail-item">
+                      <span className="detail-label">総出題数</span>
+                      <strong className="detail-value">{sessionStats.total} 問</strong>
+                    </div>
+                    <div className="score-detail-item">
+                      <span className="detail-label">正解数</span>
+                      <strong className="detail-value text-green">{sessionStats.correct} 問</strong>
+                    </div>
+                    <div className="score-detail-item">
+                      <span className="detail-label">不正解</span>
+                      <strong className="detail-value text-red">{sessionStats.total - sessionStats.correct} 問</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="complete-actions">
+                  <button
+                    onClick={startQuiz}
+                    className="btn btn-primary btn-lg"
+                  >
+                    🔄 同じ設定で再挑戦
+                  </button>
                   <button
                     onClick={() => setCurrentView('themes')}
-                    className="btn btn-primary"
+                    className="btn btn-secondary btn-lg"
                   >
-                    他のテーマを選択
+                    📂 他のテーマを選択
                   </button>
                   <button
                     onClick={() => setCurrentView('dashboard')}
-                    className="btn"
-                    style={{
-                      background: '#f3f4f6',
-                      color: '#374151',
-                      border: '1px solid #d1d5db',
-                    }}
+                    className="btn btn-ghost btn-lg"
                   >
-                    ダッシュボードに戻る
+                    🏠 ダッシュボードに戻る
                   </button>
                 </div>
               </div>
