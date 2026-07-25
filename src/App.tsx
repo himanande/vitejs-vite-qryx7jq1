@@ -67,6 +67,11 @@ function App() {
   const [isSetupReady, setIsSetupReady] = useState(false);
   const [answerResult, setAnswerResult] = useState<any>(null);
 
+  // 認証用 State (Supabase Auth)
+  const [emailInput, setEmailInput] = useState('');
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
   // 復習機能用 State (localStorage と連携)
   const [wrongQuestionIds, setWrongQuestionIds] = useState<number[]>(() => {
     try {
@@ -87,6 +92,34 @@ function App() {
       console.error('Failed to save wrong questions to localStorage', e);
     }
   };
+
+  // Supabase Auth セッション監視
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await setupUserProfile(session.user);
+        }
+      } catch (err) {
+        console.error('Error checking session:', err);
+      }
+    };
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        await setupUserProfile(session.user);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setCurrentView('login');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // データ取得関数
   const loadCategories = async () => {
@@ -217,34 +250,102 @@ function App() {
     }
   };
 
-  // 認証関数（デモ用）
-  const handleLogin = async (provider: string) => {
-    setLoading(true);
+  // ユーザープロフィールのセットアップ・取得
+  const setupUserProfile = async (authUser: any) => {
+    try {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .maybeSingle();
 
-    const userData = {
-      id: `demo-${provider}-user`,
-      email: `user@${provider}.com`,
-      name: `${provider}ユーザー`,
-      provider: provider,
-      isPremium: provider === 'google',
-    };
+      let isPremium = profile?.is_premium || false;
+      let displayName = profile?.display_name || authUser.email?.split('@')[0] || 'ユーザー';
 
-    setUser(userData);
-    setUserStats({
-      questionsAnswered: 0,
-      correctAnswers: 0,
-      studyStreak: 1,
-      dailyQuestions: 0,
-    });
+      if (!profile) {
+        await supabase.from('user_profiles').upsert([
+          {
+            id: authUser.id,
+            display_name: displayName,
+            avatar_url: authUser.user_metadata?.avatar_url || '',
+            provider: authUser.app_metadata?.provider || 'email',
+            is_premium: false,
+          },
+        ]);
+      }
 
-    setCurrentView('dashboard');
-    await loadCategories();
-    setLoading(false);
+      setUser({
+        id: authUser.id,
+        email: authUser.email,
+        name: displayName,
+        provider: authUser.app_metadata?.provider || 'email',
+        isPremium: isPremium,
+      });
+
+      setCurrentView('dashboard');
+      await loadCategories();
+    } catch (err) {
+      console.error('Error setting up user profile:', err);
+    }
   };
 
-  const handleLogout = () => {
+  // Supabase Auth: OAuth ログイン
+  const handleOAuthLogin = async (provider: 'google' | 'twitter') => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      console.error(`Error logging in with ${provider}:`, err);
+      setAuthError(`${provider} ログインでエラーが発生しました。設定を確認してください。`);
+      setLoading(false);
+    }
+  };
+
+  // Supabase Auth: メールマジックリンク (パスワードレス) ログイン
+  const handleMagicLinkLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailInput || !emailInput.includes('@')) {
+      setAuthError('有効なメールアドレスを入力してください');
+      return;
+    }
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: emailInput,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      });
+      if (error) throw error;
+      setMagicLinkSent(true);
+    } catch (err: any) {
+      console.error('Error sending magic link:', err);
+      setAuthError('マジックリンクの送信に失敗しました。時間をおいて再試行してください。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ログアウト
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error('Signout error', e);
+    }
     setUser(null);
     setCurrentView('login');
+    setMagicLinkSent(false);
+    setEmailInput('');
+    setAuthError(null);
     setCategories([]);
     setThemes([]);
     setQuestions([]);
@@ -380,36 +481,75 @@ function App() {
             <div className="logo">🏯</div>
             <h1>京都検定3級</h1>
             <p>問題集アプリ</p>
-            <div className="stackblitz-badge">✅ StackBlitz + Supabase連携</div>
+            <div className="stackblitz-badge">🔒 パスワード不要の安全認証</div>
           </div>
 
-          <div className="login-buttons">
-            <button
-              onClick={() => handleLogin('google')}
-              disabled={loading}
-              className="btn btn-google"
-            >
-              <span>G</span>
-              Googleでログイン
-            </button>
+          {authError && (
+            <div className="auth-error-box">
+              <p>⚠️ {authError}</p>
+            </div>
+          )}
 
-            <button
-              onClick={() => handleLogin('twitter')}
-              disabled={loading}
-              className="btn btn-twitter"
-            >
-              <span>🐦</span>
-              Twitterでログイン
-            </button>
+          {magicLinkSent ? (
+            <div className="magic-link-success">
+              <div className="success-icon">📧</div>
+              <h3>ログイン用メールを送信しました！</h3>
+              <p>
+                <strong>{emailInput}</strong> 宛にログインリンクをお送りしました。メール内のリンクをクリックしてアプリにお戻りください。
+              </p>
+              <button
+                onClick={() => setMagicLinkSent(false)}
+                className="btn btn-secondary"
+                style={{ width: '100%', marginTop: '1rem' }}
+              >
+                ← 戻る
+              </button>
+            </div>
+          ) : (
+            <div className="login-buttons">
+              <button
+                onClick={() => handleOAuthLogin('google')}
+                disabled={loading}
+                className="btn btn-google"
+              >
+                <span>G</span>
+                Google でログイン
+              </button>
 
-            <button
-              onClick={() => handleLogin('email')}
-              disabled={loading}
-              className="btn btn-primary"
-            >
-              メールでログイン
-            </button>
-          </div>
+              <button
+                onClick={() => handleOAuthLogin('twitter')}
+                disabled={loading}
+                className="btn btn-twitter"
+              >
+                <span>𝕏</span>
+                X (旧Twitter) でログイン
+              </button>
+
+              <div className="auth-divider">
+                <span>またはメール（パスワード不要）</span>
+              </div>
+
+              <form onSubmit={handleMagicLinkLogin} className="magic-link-form">
+                <input
+                  type="email"
+                  placeholder="name@example.com"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  disabled={loading}
+                  className="email-input"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !emailInput}
+                  className="btn btn-primary"
+                  style={{ width: '100%' }}
+                >
+                  {loading ? '送信中...' : '✉️ マジックリンクを送信'}
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </div>
     );
