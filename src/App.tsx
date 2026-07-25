@@ -67,6 +67,27 @@ function App() {
   const [isSetupReady, setIsSetupReady] = useState(false);
   const [answerResult, setAnswerResult] = useState<any>(null);
 
+  // 復習機能用 State (localStorage と連携)
+  const [wrongQuestionIds, setWrongQuestionIds] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem('kyotokentei3_wrong_questions');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isReviewMode, setIsReviewMode] = useState<boolean>(false);
+  const [sessionWrongIds, setSessionWrongIds] = useState<number[]>([]);
+
+  const saveWrongQuestions = (newIds: number[]) => {
+    setWrongQuestionIds(newIds);
+    try {
+      localStorage.setItem('kyotokentei3_wrong_questions', JSON.stringify(newIds));
+    } catch (e) {
+      console.error('Failed to save wrong questions to localStorage', e);
+    }
+  };
+
   // データ取得関数
   const loadCategories = async () => {
     setLoading(true);
@@ -111,7 +132,16 @@ function App() {
         .select('*')
         .eq('is_active', true);
 
-      if (selectedTheme) {
+      if (isReviewMode) {
+        if (wrongQuestionIds.length === 0) {
+          setQuestions([]);
+          setCurrentQuestion(null);
+          setCurrentView('questions');
+          setLoading(false);
+          return;
+        }
+        query = query.in('id', wrongQuestionIds);
+      } else if (selectedTheme) {
         query = query.eq('theme_id', selectedTheme.id);
       } else if (selectedCategory) {
         query = query.eq('category_id', selectedCategory.id);
@@ -136,6 +166,7 @@ function App() {
 
       setQuestions(filteredQuestions);
       setSessionStats({ total: 0, correct: 0 });
+      setSessionWrongIds([]);
       setAnswerResult(null);
 
       if (filteredQuestions.length > 0) {
@@ -148,6 +179,39 @@ function App() {
       console.error('Error starting quiz:', err);
       setQuestions([]);
       setCurrentQuestion(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startQuizWithIds = async (targetIds: number[]) => {
+    if (targetIds.length === 0) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('questions')
+        .select('*')
+        .in('id', targetIds)
+        .eq('is_active', true);
+
+      if (error) throw error;
+
+      let filteredQuestions = data || [];
+      filteredQuestions = [...filteredQuestions].sort(() => Math.random() - 0.5);
+
+      setQuestions(filteredQuestions);
+      setSessionStats({ total: 0, correct: 0 });
+      setSessionWrongIds([]);
+      setAnswerResult(null);
+
+      if (filteredQuestions.length > 0) {
+        setCurrentQuestion(filteredQuestions[0]);
+      } else {
+        setCurrentQuestion(null);
+      }
+      setCurrentView('questions');
+    } catch (err) {
+      console.error('Error starting specific ID quiz:', err);
     } finally {
       setLoading(false);
     }
@@ -199,6 +263,7 @@ function App() {
 
   const handleThemeSelect = (theme: Theme) => {
     setSelectedTheme(theme);
+    setIsReviewMode(false);
     setSelectedQuestionCount(10);
     setSelectedDifficulty(0);
     setIsSetupReady(false);
@@ -212,6 +277,7 @@ function App() {
   const handleCategoryQuizSetup = (category: Category) => {
     setSelectedCategory(category);
     setSelectedTheme(null);
+    setIsReviewMode(false);
     setSelectedQuestionCount(10);
     setSelectedDifficulty(0);
     setIsSetupReady(false);
@@ -225,6 +291,21 @@ function App() {
   const handleAllQuizSetup = () => {
     setSelectedCategory(null);
     setSelectedTheme(null);
+    setIsReviewMode(false);
+    setSelectedQuestionCount(10);
+    setSelectedDifficulty(0);
+    setIsSetupReady(false);
+    setCurrentView('quizSetup');
+
+    setTimeout(() => {
+      setIsSetupReady(true);
+    }, 300);
+  };
+
+  const handleReviewQuizSetup = () => {
+    setSelectedCategory(null);
+    setSelectedTheme(null);
+    setIsReviewMode(true);
     setSelectedQuestionCount(10);
     setSelectedDifficulty(0);
     setIsSetupReady(false);
@@ -245,6 +326,21 @@ function App() {
       isCorrect: isCorrect,
       correctAnswer: currentQuestion.correct_answer,
     });
+
+    if (isCorrect) {
+      // 復習で正解した問題は間違えた問題リストから解除
+      if (wrongQuestionIds.includes(currentQuestion.id)) {
+        const updated = wrongQuestionIds.filter((id) => id !== currentQuestion.id);
+        saveWrongQuestions(updated);
+      }
+    } else {
+      // 不正解の場合は間違えた問題リストに追加
+      if (!wrongQuestionIds.includes(currentQuestion.id)) {
+        const updated = [...wrongQuestionIds, currentQuestion.id];
+        saveWrongQuestions(updated);
+      }
+      setSessionWrongIds((prev) => [...prev, currentQuestion.id]);
+    }
 
     setUserStats((prev) => ({
       ...prev,
@@ -386,6 +482,60 @@ function App() {
                   <p>今日の問題</p>
                   <strong>{userStats.dailyQuestions}問</strong>
                 </div>
+              </div>
+            </div>
+
+            {/* 弱点克服・復習モードカード */}
+            <div
+              className="card"
+              style={{
+                marginBottom: '1.5rem',
+                background: wrongQuestionIds.length > 0 ? 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' : '#f9fafb',
+                border: wrongQuestionIds.length > 0 ? '1px solid #bfdbfe' : '1px solid #e5e7eb',
+              }}
+            >
+              <div
+                className="card-content"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '1rem',
+                }}
+              >
+                <div>
+                  <h3
+                    style={{
+                      fontSize: '1.25rem',
+                      color: wrongQuestionIds.length > 0 ? '#1e40af' : '#4b5563',
+                      fontWeight: 'bold',
+                      marginBottom: '0.25rem',
+                    }}
+                  >
+                    🎯 弱点克服！間違い復習モード
+                  </h3>
+                  <p style={{ color: wrongQuestionIds.length > 0 ? '#1e3a8a' : '#6b7280', fontSize: '0.9rem' }}>
+                    {wrongQuestionIds.length > 0
+                      ? `過去に間違えた問題が ${wrongQuestionIds.length} 問記録されています。繰り返し解いて弱点をなくそう！`
+                      : '現在、間違えた問題はありません！素晴らしい学習状況です。'}
+                  </p>
+                </div>
+                {wrongQuestionIds.length > 0 && (
+                  <button
+                    onClick={handleReviewQuizSetup}
+                    className="btn btn-primary"
+                    style={{
+                      background: '#2563eb',
+                      borderColor: '#1d4ed8',
+                      padding: '0.75rem 1.5rem',
+                      fontSize: '1rem',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    ✏️ 条件を設定して復習スタート →
+                  </button>
+                )}
               </div>
             </div>
 
@@ -895,6 +1045,20 @@ function App() {
                 </div>
 
                 <div className="complete-actions">
+                  {sessionWrongIds.length > 0 && (
+                    <button
+                      onClick={() => startQuizWithIds(sessionWrongIds)}
+                      className="btn btn-lg"
+                      style={{
+                        background: '#fef2f2',
+                        color: '#dc2626',
+                        border: '1.5px solid #fecaca',
+                        marginBottom: '0.25rem',
+                      }}
+                    >
+                      ❌ 今回間違えた {sessionWrongIds.length} 問を復習する
+                    </button>
+                  )}
                   <button
                     onClick={startQuiz}
                     className="btn btn-primary btn-lg"
