@@ -446,7 +446,8 @@ function App() {
   const setupUserProfile = async (authUser: any) => {
     let displayName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'ユーザー';
     let isPremium = false;
-    let isAdmin = authUser.email === 'ikeda3.note@gmail.com';
+    const userEmail = (authUser.email || authUser.user_metadata?.email || '').toLowerCase().trim();
+    let isAdmin = userEmail === 'ikeda3.note@gmail.com' || userEmail.includes('ikeda3.note');
 
     try {
       const { data: profile } = await supabase
@@ -458,7 +459,13 @@ function App() {
       if (profile) {
         isPremium = profile.is_premium || false;
         displayName = profile.display_name || displayName;
-        if (profile.is_admin) isAdmin = true;
+        if (profile.is_admin || isAdmin) {
+          isAdmin = true;
+          // DBのis_adminも必要に応じてアップデート
+          if (!profile.is_admin) {
+            await supabase.from('user_profiles').update({ is_admin: true }).eq('id', authUser.id);
+          }
+        }
       } else {
         try {
           await supabase.from('user_profiles').upsert([
@@ -468,6 +475,7 @@ function App() {
               avatar_url: authUser.user_metadata?.avatar_url || '',
               provider: authUser.app_metadata?.provider || 'email',
               is_premium: false,
+              is_admin: isAdmin,
             },
           ]);
         } catch (e) {
@@ -479,7 +487,7 @@ function App() {
     } finally {
       setUser({
         id: authUser.id,
-        email: authUser.email,
+        email: authUser.email || userEmail,
         name: displayName,
         provider: authUser.app_metadata?.provider || 'email',
         isPremium: isPremium,
@@ -1232,15 +1240,85 @@ function App() {
               </div>
 
               <div className="card-content" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', padding: '2rem 1.5rem' }}>
+                {/* 対象カテゴリ選択 */}
+                <div className="setup-group">
+                  <label className="setup-label">📂 対象カテゴリを選択</label>
+                  <select
+                    value={selectedCategory?.id || 0}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (val === 0) {
+                        setSelectedCategory(null);
+                        setSelectedTheme(null);
+                      } else {
+                        const found = categories.find((c) => c.id === val);
+                        if (found) {
+                          setSelectedCategory(found);
+                          setSelectedTheme(null);
+                        }
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.5rem',
+                      border: '1.5px solid #d1d5db',
+                      fontSize: '1rem',
+                      fontWeight: 'bold',
+                      background: 'white',
+                      color: '#1f2937',
+                    }}
+                  >
+                    <option value={0}>🔥 すべてのカテゴリ（全総合ランダム）</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* 出題数選択 */}
                 <div className="setup-group">
-                  <label className="setup-label">📌 出題数を選択</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <label className="setup-label" style={{ marginBottom: 0 }}>📌 出題数を選択（最大100問）</label>
+                    <span style={{ fontSize: '0.85rem', color: '#dc2626', fontWeight: 'bold' }}>
+                      {selectedQuestionCount === 0 ? '全問演習' : `選択中: ${selectedQuestionCount}問`}
+                    </span>
+                  </div>
+
+                  <select
+                    value={selectedQuestionCount}
+                    onChange={(e) => setSelectedQuestionCount(parseInt(e.target.value, 10))}
+                    style={{
+                      width: '100%',
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.5rem',
+                      border: '1.5px solid #d1d5db',
+                      fontSize: '1rem',
+                      fontWeight: 'bold',
+                      background: 'white',
+                      color: '#1f2937',
+                      marginBottom: '1rem',
+                    }}
+                  >
+                    <option value={5}>5問 （サクッと演習）</option>
+                    <option value={10}>10問 （おすすめ）</option>
+                    <option value={20}>20問 （しっかり演習）</option>
+                    <option value={30}>30問 （本格演習）</option>
+                    <option value={50}>50問 （ハーフ模試）</option>
+                    <option value={100}>100問 （本番フル模試）</option>
+                    <option value={0}>全問チャレンジ（全530問〜）</option>
+                  </select>
+
                   <div className="chip-group">
                     {[
                       { label: '5問', value: 5 },
                       { label: '10問', value: 10 },
                       { label: '20問', value: 20 },
-                      { label: '全問チャレンジ', value: 0 },
+                      { label: '50問', value: 50 },
+                      { label: '100問', value: 100 },
+                      { label: '全問', value: 0 },
                     ].map((item) => (
                       <button
                         key={item.value}
