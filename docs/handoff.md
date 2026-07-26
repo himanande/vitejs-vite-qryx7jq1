@@ -11,7 +11,7 @@
 
 - **プロジェクト名**: 京都検定 3 級 Web 問題集
 - **技術スタック**: React + TypeScript + Vite + Supabase (PostgreSQL)
-- **進捗**: 約 95%（Supabase Auth本番認証・パスワードレスマジックリンク・user_profiles連動完了）
+- **進捗**: 約 98%（Supabase Auth本番認証・1日10問無料枠制限・全カテゴリ有効化）
 
 ### ⚠️ 開発フローの重要ルール
 
