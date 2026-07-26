@@ -149,6 +149,56 @@ function App() {
 
   const getTodayString = () => new Date().toISOString().split('T')[0];
 
+  // モーダルヘルパー関数（早期宣言）
+  const renderLimitModal = () => {
+    if (!showLimitModal) return null;
+    return (
+      <div className="modal-overlay" onClick={() => setShowLimitModal(false)}>
+        <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <span className="modal-icon">🎉</span>
+            <h2>本日の無料枠（10問）完了！</h2>
+          </div>
+          <div className="modal-body">
+            <p style={{ fontSize: '1.05rem', color: '#1f2937', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+              本日の無料演習上限（10問）に達しました！
+            </p>
+            <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+              素晴らしい学習ペースです。明日になると自動的にリセットされ、再び10問チャレンジできます。
+            </p>
+            <div className="premium-upgrade-box">
+              <div className="premium-badge-lg">👑 プレミアムプランのご案内</div>
+              <p className="premium-desc">
+                月額 680 円で <strong>全530問以上が解き放題・無制限</strong>！難易度制限なし＆無制限復習機能で一気に合格を目指そう！
+              </p>
+            </div>
+          </div>
+          <div className="modal-actions">
+            <button
+              onClick={() => {
+                setShowLimitModal(false);
+                handleUpgradeToPremium();
+              }}
+              className="btn btn-primary btn-lg"
+              style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', borderColor: '#b45309' }}
+            >
+              👑 月額680円でプレミアム登録 →
+            </button>
+            <button
+              onClick={() => {
+                setShowLimitModal(false);
+                setCurrentView('dashboard');
+              }}
+              className="btn btn-secondary btn-lg"
+            >
+              ダッシュボードへ戻る
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // 本日解答数の初期化と日付自動リセット
   useEffect(() => {
     const today = getTodayString();
@@ -1542,55 +1592,7 @@ function App() {
     );
   }
 
-  // モーダルヘルパー関数
-  const renderLimitModal = () => {
-    if (!showLimitModal) return null;
-    return (
-      <div className="modal-overlay" onClick={() => setShowLimitModal(false)}>
-        <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-          <div className="modal-header">
-            <span className="modal-icon">🎉</span>
-            <h2>本日の無料枠（10問）完了！</h2>
-          </div>
-          <div className="modal-body">
-            <p style={{ fontSize: '1.05rem', color: '#1f2937', marginBottom: '0.5rem', fontWeight: 'bold' }}>
-              本日の無料演習上限（10問）に達しました！
-            </p>
-            <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-              素晴らしい学習ペースです。明日になると自動的にリセットされ、再び10問チャレンジできます。
-            </p>
-            <div className="premium-upgrade-box">
-              <div className="premium-badge-lg">👑 プレミアムプランのご案内</div>
-              <p className="premium-desc">
-                月額 680 円で <strong>全530問以上が解き放題・無制限</strong>！難易度制限なし＆無制限復習機能で一気に合格を目指そう！
-              </p>
-            </div>
-          </div>
-          <div className="modal-actions">
-            <button
-              onClick={() => {
-                setShowLimitModal(false);
-                handleUpgradeToPremium();
-              }}
-              className="btn btn-primary btn-lg"
-              style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', borderColor: '#b45309' }}
-            >
-              👑 月額680円でプレミアム登録 →
-            </button>
-            <button
-              onClick={() => {
-                setShowLimitModal(false);
-                setCurrentView('dashboard');
-              }}
-              className="btn btn-secondary btn-lg"
-            >
-              ダッシュボードへ戻る
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
+
 
   return (
     <div className="login-container">
