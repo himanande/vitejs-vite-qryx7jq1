@@ -203,7 +203,7 @@ function App() {
 
   // ユーザーログイン状態変更時に自動的にダッシュボードを開く
   useEffect(() => {
-    if (user && currentView === 'login') {
+    if (user && (currentView === 'login' || !currentView)) {
       setCurrentView('dashboard');
       loadCategories();
     }
@@ -211,10 +211,12 @@ function App() {
 
   // Supabase Auth セッション監視
   useEffect(() => {
+    let isMounted = true;
+
     const checkSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
+        if (session?.user && isMounted) {
           await setupUserProfile(session.user);
         }
       } catch (err) {
@@ -224,15 +226,16 @@ function App() {
     checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
+      if (session?.user && isMounted) {
         await setupUserProfile(session.user);
-      } else if (event === 'SIGNED_OUT') {
+      } else if (event === 'SIGNED_OUT' && isMounted) {
         setUser(null);
         setCurrentView('login');
       }
     });
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
