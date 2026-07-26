@@ -370,6 +370,10 @@ function App() {
 
   // ユーザープロフィールのセットアップ・取得
   const setupUserProfile = async (authUser: any) => {
+    let displayName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'ユーザー';
+    let isPremium = false;
+    let isAdmin = authUser.email === 'ikeda3.note@gmail.com';
+
     try {
       const { data: profile } = await supabase
         .from('user_profiles')
@@ -377,23 +381,28 @@ function App() {
         .eq('id', authUser.id)
         .maybeSingle();
 
-      let isPremium = profile?.is_premium || false;
-      let displayName = profile?.display_name || authUser.email?.split('@')[0] || 'ユーザー';
-
-      if (!profile) {
-        await supabase.from('user_profiles').upsert([
-          {
-            id: authUser.id,
-            display_name: displayName,
-            avatar_url: authUser.user_metadata?.avatar_url || '',
-            provider: authUser.app_metadata?.provider || 'email',
-            is_premium: false,
-          },
-        ]);
+      if (profile) {
+        isPremium = profile.is_premium || false;
+        displayName = profile.display_name || displayName;
+        if (profile.is_admin) isAdmin = true;
+      } else {
+        try {
+          await supabase.from('user_profiles').upsert([
+            {
+              id: authUser.id,
+              display_name: displayName,
+              avatar_url: authUser.user_metadata?.avatar_url || '',
+              provider: authUser.app_metadata?.provider || 'email',
+              is_premium: false,
+            },
+          ]);
+        } catch (e) {
+          console.warn('user_profiles upsert warn (ignored for login flow):', e);
+        }
       }
-
-      let isAdmin = authUser.email === 'ikeda3.note@gmail.com' || profile?.is_admin === true;
-
+    } catch (err) {
+      console.error('Error fetching user profile:', err);
+    } finally {
       setUser({
         id: authUser.id,
         email: authUser.email,
@@ -405,8 +414,7 @@ function App() {
 
       setCurrentView('dashboard');
       await loadCategories();
-    } catch (err) {
-      console.error('Error setting up user profile:', err);
+      setLoading(false);
     }
   };
 
