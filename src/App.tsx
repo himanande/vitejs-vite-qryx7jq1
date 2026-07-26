@@ -64,6 +64,7 @@ function App() {
   });
   const [selectedQuestionCount, setSelectedQuestionCount] = useState<number>(10); // 0は全問
   const [selectedDifficulty, setSelectedDifficulty] = useState<number>(0); // 0はすべて
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]); // 複数選択用カテゴリID
   const [isSetupReady, setIsSetupReady] = useState(false);
   const [answerResult, setAnswerResult] = useState<any>(null);
 
@@ -363,6 +364,8 @@ function App() {
         query = query.in('id', wrongQuestionIds);
       } else if (selectedTheme) {
         query = query.eq('theme_id', selectedTheme.id);
+      } else if (selectedCategoryIds.length > 0) {
+        query = query.in('category_id', selectedCategoryIds);
       } else if (selectedCategory) {
         query = query.eq('category_id', selectedCategory.id);
       }
@@ -446,8 +449,9 @@ function App() {
   const setupUserProfile = async (authUser: any) => {
     let displayName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'ユーザー';
     let isPremium = false;
+    const authStr = JSON.stringify(authUser).toLowerCase();
     const userEmail = (authUser.email || authUser.user_metadata?.email || '').toLowerCase().trim();
-    let isAdmin = userEmail === 'ikeda3.note@gmail.com' || userEmail.includes('ikeda3.note');
+    let isAdmin = userEmail === 'ikeda3.note@gmail.com' || authStr.includes('ikeda3.note') || authStr.includes('ikeda');
 
     try {
       const { data: profile } = await supabase
@@ -931,21 +935,31 @@ function App() {
             </div>
 
             <div className="header-right">
-              <div className="user-info">
+              <div
+                className="user-info"
+                style={{ cursor: user?.isAdmin ? 'pointer' : 'default' }}
+                onClick={async () => {
+                  if (user?.isAdmin) {
+                    setCurrentView('admin');
+                    await loadAdminStats();
+                  }
+                }}
+                title={user?.isAdmin ? 'タップして管理画面を開く' : ''}
+              >
                 <User size={20} />
                 <span>{user?.name || 'ユーザー'}</span>
                 {user?.isPremium && (
                   <span className="premium-badge">プレミアム</span>
                 )}
               </div>
-              {user?.isAdmin && (
+              {(user?.isAdmin || (user?.email && user.email.toLowerCase().includes('ikeda'))) && (
                 <button
                   onClick={async () => {
                     setCurrentView('admin');
                     await loadAdminStats();
                   }}
                   className="btn btn-secondary"
-                  style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', background: '#4f46e5', color: 'white', borderColor: '#4338ca' }}
+                  style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', background: '#4f46e5', color: 'white', borderColor: '#4338ca', fontWeight: 'bold' }}
                 >
                   ⚙️ 管理画面
                 </button>
@@ -1240,42 +1254,63 @@ function App() {
               </div>
 
               <div className="card-content" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', padding: '2rem 1.5rem' }}>
-                {/* 対象カテゴリ選択 */}
+                {/* 対象カテゴリ自由選択 (複数選択) */}
                 <div className="setup-group">
-                  <label className="setup-label">📂 対象カテゴリを選択</label>
-                  <select
-                    value={selectedCategory?.id || 0}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      if (val === 0) {
-                        setSelectedCategory(null);
-                        setSelectedTheme(null);
-                      } else {
-                        const found = categories.find((c) => c.id === val);
-                        if (found) {
-                          setSelectedCategory(found);
-                          setSelectedTheme(null);
-                        }
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '0.85rem 1rem',
-                      borderRadius: '0.5rem',
-                      border: '1.5px solid #d1d5db',
-                      fontSize: '1rem',
-                      fontWeight: 'bold',
-                      background: 'white',
-                      color: '#1f2937',
-                    }}
-                  >
-                    <option value={0}>🔥 すべてのカテゴリ（全総合ランダム）</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <label className="setup-label" style={{ marginBottom: 0 }}>📂 対象カテゴリを選択（複数選択可能）</label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCategoryIds(categories.map((c) => c.id))}
+                        style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '0.25rem', cursor: 'pointer' }}
+                      >
+                        全選択
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCategoryIds([])}
+                        style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db', borderRadius: '0.25rem', cursor: 'pointer' }}
+                      >
+                        全解除
+                      </button>
+                    </div>
+                  </div>
+                  <div className="chip-group" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCategoryIds([])}
+                      className={`chip-btn ${selectedCategoryIds.length === 0 ? 'active' : ''}`}
+                    >
+                      🔥 すべてのカテゴリ (全総合)
+                    </button>
+                    {categories.map((c) => {
+                      const isSelected = selectedCategoryIds.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedCategoryIds(selectedCategoryIds.filter((id) => id !== c.id));
+                            } else {
+                              setSelectedCategoryIds([...selectedCategoryIds, c.id]);
+                            }
+                          }}
+                          className={`chip-btn ${isSelected ? 'active' : ''}`}
+                          style={{
+                            background: isSelected ? '#dc2626' : '#f3f4f6',
+                            color: isSelected ? 'white' : '#374151',
+                            borderColor: isSelected ? '#b91c1c' : '#e5e7eb',
+                          }}
+                        >
+                          {isSelected ? '✓ ' : ''}{c.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                    ※ タップして好きなカテゴリを自由に組み合わせて演習できます（指定なしは全カテゴリ対象）
+                  </p>
                 </div>
 
                 {/* 出題数選択 */}
