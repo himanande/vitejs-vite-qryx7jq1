@@ -69,6 +69,7 @@ function App() {
 
   // 認証用 State (Supabase Auth)
   const [emailInput, setEmailInput] = useState('');
+  const [showEmailForm, setShowEmailForm] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -391,12 +392,15 @@ function App() {
         ]);
       }
 
+      let isAdmin = profile?.is_admin || authUser.email?.includes('admin') || authUser.email?.includes('ikeda') || false;
+
       setUser({
         id: authUser.id,
         email: authUser.email,
         name: displayName,
         provider: authUser.app_metadata?.provider || 'email',
         isPremium: isPremium,
+        isAdmin: isAdmin,
       });
 
       setCurrentView('dashboard');
@@ -637,29 +641,50 @@ function App() {
                 Google でログイン
               </button>
 
-              <div className="auth-divider">
-                <span>メールでログイン（パスワード不要）</span>
-              </div>
-
-              <form onSubmit={handleMagicLinkLogin} className="magic-link-form">
-                <input
-                  type="email"
-                  placeholder="name@example.com"
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  disabled={loading}
-                  className="email-input"
-                  required
-                />
+              {!showEmailForm ? (
                 <button
-                  type="submit"
-                  disabled={loading || !emailInput}
-                  className="btn btn-primary"
-                  style={{ width: '100%' }}
+                  onClick={() => setShowEmailForm(true)}
+                  disabled={loading}
+                  className="btn btn-email"
                 >
-                  {loading ? '送信中...' : '✉️ マジックリンクを送信'}
+                  <span>✉️</span>
+                  メールでログイン（パスワード不要）
                 </button>
-              </form>
+              ) : (
+                <form onSubmit={handleMagicLinkLogin} className="magic-link-form" style={{ marginTop: '0.5rem' }}>
+                  <label style={{ fontSize: '0.85rem', color: '#4b5563', textAlign: 'left', fontWeight: 'bold' }}>
+                    ✉️ メールアドレス（パスワード不要）
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="name@example.com"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    disabled={loading}
+                    className="email-input"
+                    required
+                    autoFocus
+                  />
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowEmailForm(false)}
+                      className="btn btn-secondary"
+                      style={{ width: '35%' }}
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading || !emailInput}
+                      className="btn btn-primary"
+                      style={{ width: '65%' }}
+                    >
+                      {loading ? '送信中...' : 'メール送信 →'}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           )}
         </div>
@@ -823,16 +848,18 @@ function App() {
                   <span className="premium-badge">プレミアム</span>
                 )}
               </div>
-              <button
-                onClick={async () => {
-                  setCurrentView('admin');
-                  await loadAdminStats();
-                }}
-                className="btn btn-secondary"
-                style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
-              >
-                ⚙️ 管理画面
-              </button>
+              {user?.isAdmin && (
+                <button
+                  onClick={async () => {
+                    setCurrentView('admin');
+                    await loadAdminStats();
+                  }}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', background: '#4f46e5', color: 'white', borderColor: '#4338ca' }}
+                >
+                  ⚙️ 管理画面
+                </button>
+              )}
               <button onClick={handleLogout} className="logout-btn">
                 <LogOut size={20} />
               </button>

@@ -106,6 +106,16 @@ body {
   background: #f9fafb;
 }
 
+.btn-email {
+  background: white;
+  border: 1px solid #d1d5db;
+  color: #374151;
+}
+
+.btn-email:hover {
+  background: #f9fafb;
+}
+
 .btn-twitter {
   background: #1d4ed8;
   color: white;
