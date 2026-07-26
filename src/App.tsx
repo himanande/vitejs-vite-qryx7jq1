@@ -516,15 +516,6 @@ function App() {
                 Google でログイン
               </button>
 
-              <button
-                onClick={() => handleOAuthLogin('twitter')}
-                disabled={loading}
-                className="btn btn-twitter"
-              >
-                <span>𝕏</span>
-                X (旧Twitter) でログイン
-              </button>
-
               <div className="auth-divider">
                 <span>またはメール（パスワード不要）</span>
               </div>
