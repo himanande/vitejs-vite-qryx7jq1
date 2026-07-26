@@ -84,12 +84,62 @@ function App() {
   const [isReviewMode, setIsReviewMode] = useState<boolean>(false);
   const [sessionWrongIds, setSessionWrongIds] = useState<number[]>([]);
 
+  // 管理画面用 State
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminStats, setAdminStats] = useState({
+    totalUsers: 0,
+    freeUsers: 0,
+    premiumUsers: 0,
+    monthlyRevenue: 0,
+    totalQuestions: 534,
+  });
+
   const saveWrongQuestions = (newIds: number[]) => {
     setWrongQuestionIds(newIds);
     try {
       localStorage.setItem('kyotokentei3_wrong_questions', JSON.stringify(newIds));
     } catch (e) {
       console.error('Failed to save wrong questions to localStorage', e);
+    }
+  };
+
+  const loadAdminStats = async () => {
+    setLoading(true);
+    try {
+      const { data: profiles, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && profiles) {
+        setAdminUsers(profiles);
+        const premiumCount = profiles.filter((p) => p.is_premium).length;
+        setAdminStats({
+          totalUsers: profiles.length,
+          freeUsers: profiles.length - premiumCount,
+          premiumUsers: premiumCount,
+          monthlyRevenue: premiumCount * 680,
+          totalQuestions: 534,
+        });
+      }
+    } catch (e) {
+      console.error('Error loading admin stats:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleUserPremium = async (userId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ is_premium: !currentStatus })
+        .eq('id', userId);
+
+      if (error) throw error;
+      await loadAdminStats();
+    } catch (e) {
+      console.error('Error toggling user premium:', e);
     }
   };
 
@@ -588,7 +638,7 @@ function App() {
               </button>
 
               <div className="auth-divider">
-                <span>またはメール（パスワード不要）</span>
+                <span>メールでログイン（パスワード不要）</span>
               </div>
 
               <form onSubmit={handleMagicLinkLogin} className="magic-link-form">
@@ -613,6 +663,135 @@ function App() {
             </div>
           )}
         </div>
+      </div>
+    );
+  }
+
+  // 管理者用ダッシュボード画面
+  if (currentView === 'admin') {
+    return (
+      <div className="app">
+        <header className="header">
+          <div className="container">
+            <button
+              onClick={() => setCurrentView('dashboard')}
+              className="back-btn"
+            >
+              ← アプリに戻る
+            </button>
+            <div className="header-left">
+              <span className="logo">⚙️</span>
+              <h1>管理者ダッシュボード</h1>
+              <span className="badge" style={{ background: '#4f46e5' }}>管理者モード</span>
+            </div>
+            <div className="header-right">
+              <button onClick={loadAdminStats} className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>
+                🔄 データを更新
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="main">
+          <div className="container">
+            {/* サマリーメトリクス */}
+            <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+              <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                <div>
+                  <p>総登録ユーザー数</p>
+                  <strong style={{ fontSize: '1.75rem', color: '#1d4ed8' }}>{adminStats.totalUsers} 名</strong>
+                </div>
+              </div>
+
+              <div className="stat-card" style={{ borderLeft: '4px solid #16a34a' }}>
+                <div>
+                  <p>有料プレミアム会員</p>
+                  <strong style={{ fontSize: '1.75rem', color: '#15803d' }}>{adminStats.premiumUsers} 名</strong>
+                </div>
+              </div>
+
+              <div className="stat-card" style={{ borderLeft: '4px solid #eab308' }}>
+                <div>
+                  <p>今月の推計月間収益</p>
+                  <strong style={{ fontSize: '1.75rem', color: '#b45309' }}>￥{adminStats.monthlyRevenue.toLocaleString()}</strong>
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block' }}>（￥680 × {adminStats.premiumUsers}名）</span>
+                </div>
+              </div>
+
+              <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                <div>
+                  <p>収録問題数</p>
+                  <strong style={{ fontSize: '1.75rem', color: '#6d28d9' }}>{adminStats.totalQuestions} 問</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* ユーザー管理テーブル */}
+            <div className="card" style={{ marginTop: '1.5rem' }}>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2>登録ユーザー一覧・会員ステータス管理</h2>
+                  <p>ユーザーの登録状況と手動権限変更が行えます</p>
+                </div>
+              </div>
+              <div className="card-content" style={{ overflowX: 'auto' }}>
+                {loading ? (
+                  <div className="loading"><div className="spinner"></div><p>データを読み込み中...</p></div>
+                ) : adminUsers.length > 0 ? (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>
+                        <th style={{ padding: '0.75rem' }}>ユーザーID / 表示名</th>
+                        <th style={{ padding: '0.75rem' }}>プロバイダー</th>
+                        <th style={{ padding: '0.75rem' }}>登録日時</th>
+                        <th style={{ padding: '0.75rem' }}>会員ステータス</th>
+                        <th style={{ padding: '0.75rem' }}>権限操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminUsers.map((u) => (
+                        <tr key={u.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: '0.75rem' }}>
+                            <strong>{u.display_name || '名称未設定'}</strong>
+                            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{u.id}</div>
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <span className="badge" style={{ background: u.provider === 'google' ? '#ea4335' : '#4b5563' }}>
+                              {u.provider || 'email'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem', color: '#4b5563' }}>
+                            {u.created_at ? new Date(u.created_at).toLocaleString('ja-JP') : '-'}
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>
+                            {u.is_premium ? (
+                              <span className="premium-badge">👑 プレミアム (月額680円)</span>
+                            ) : (
+                              <span style={{ color: '#6b7280', fontSize: '0.85rem' }}>FREE (無料会員)</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <button
+                              onClick={() => toggleUserPremium(u.id, u.is_premium)}
+                              className="btn btn-secondary"
+                              style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                            >
+                              {u.is_premium ? '無料会員へ変更' : '👑 プレミアムへ昇格'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="empty-state">
+                    <p>登録ユーザーはまだありません</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -644,6 +823,16 @@ function App() {
                   <span className="premium-badge">プレミアム</span>
                 )}
               </div>
+              <button
+                onClick={async () => {
+                  setCurrentView('admin');
+                  await loadAdminStats();
+                }}
+                className="btn btn-secondary"
+                style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
+              >
+                ⚙️ 管理画面
+              </button>
               <button onClick={handleLogout} className="logout-btn">
                 <LogOut size={20} />
               </button>

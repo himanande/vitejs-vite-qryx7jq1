@@ -1,0 +1,16 @@
+{
+  "short_name": "京都検定3級",
+  "name": "京都検定3級 Web問題集アプリ",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#dc2626",
+  "display": "standalone",
+  "orientation": "portrait"
+}
