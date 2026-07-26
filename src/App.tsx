@@ -93,6 +93,26 @@ function App() {
     }
   };
 
+  const FREE_DAILY_LIMIT = 10;
+  const [showLimitModal, setShowLimitModal] = useState(false);
+
+  const getTodayString = () => new Date().toISOString().split('T')[0];
+
+  // 本日解答数の初期化と日付自動リセット
+  useEffect(() => {
+    const today = getTodayString();
+    const savedDate = localStorage.getItem('kyotokentei3_last_date');
+    const savedCount = localStorage.getItem('kyotokentei3_daily_count');
+
+    if (savedDate !== today) {
+      localStorage.setItem('kyotokentei3_last_date', today);
+      localStorage.setItem('kyotokentei3_daily_count', '0');
+      setUserStats((prev) => ({ ...prev, dailyQuestions: 0 }));
+    } else if (savedCount) {
+      setUserStats((prev) => ({ ...prev, dailyQuestions: parseInt(savedCount, 10) || 0 }));
+    }
+  }, []);
+
   // Supabase Auth セッション監視
   useEffect(() => {
     const checkSession = async () => {
@@ -158,6 +178,11 @@ function App() {
 
   // クイズ開始関数（フィルタリングと出題数の制限）
   const startQuiz = async () => {
+    if (!user?.isPremium && userStats.dailyQuestions >= FREE_DAILY_LIMIT) {
+      setShowLimitModal(true);
+      return;
+    }
+
     setLoading(true);
     try {
       let query = supabase
@@ -219,6 +244,11 @@ function App() {
 
   const startQuizWithIds = async (targetIds: number[]) => {
     if (targetIds.length === 0) return;
+    if (!user?.isPremium && userStats.dailyQuestions >= FREE_DAILY_LIMIT) {
+      setShowLimitModal(true);
+      return;
+    }
+
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -443,11 +473,15 @@ function App() {
       setSessionWrongIds((prev) => [...prev, currentQuestion.id]);
     }
 
+    const newDailyCount = userStats.dailyQuestions + 1;
+    localStorage.setItem('kyotokentei3_daily_count', newDailyCount.toString());
+    localStorage.setItem('kyotokentei3_last_date', getTodayString());
+
     setUserStats((prev) => ({
       ...prev,
       questionsAnswered: prev.questionsAnswered + 1,
       correctAnswers: prev.correctAnswers + (isCorrect ? 1 : 0),
-      dailyQuestions: prev.dailyQuestions + 1,
+      dailyQuestions: newDailyCount,
     }));
 
     setSessionStats((prev) => ({
@@ -611,7 +645,11 @@ function App() {
                 <Star className="stat-icon purple" size={24} />
                 <div>
                   <p>今日の問題</p>
-                  <strong>{userStats.dailyQuestions}問</strong>
+                  <strong>
+                    {user?.isPremium
+                      ? `${userStats.dailyQuestions}問 (無制限)`
+                      : `${userStats.dailyQuestions} / ${FREE_DAILY_LIMIT}問`}
+                  </strong>
                 </div>
               </div>
             </div>
@@ -731,6 +769,7 @@ function App() {
             </div>
           </div>
         </main>
+        {renderLimitModal()}
       </div>
     );
   }
@@ -924,6 +963,7 @@ function App() {
             </div>
           </div>
         </main>
+        {renderLimitModal()}
       </div>
     );
   }
@@ -1216,6 +1256,46 @@ function App() {
       </div>
     );
   }
+
+  // モーダルヘルパー関数
+  const renderLimitModal = () => {
+    if (!showLimitModal) return null;
+    return (
+      <div className="modal-overlay" onClick={() => setShowLimitModal(false)}>
+        <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <span className="modal-icon">🎉</span>
+            <h2>本日の無料枠（10問）完了！</h2>
+          </div>
+          <div className="modal-body">
+            <p style={{ fontSize: '1.05rem', color: '#1f2937', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+              本日の無料演習上限（10問）に達しました！
+            </p>
+            <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+              素晴らしい学習ペースです。明日になると自動的にリセットされ、再び10問チャレンジできます。
+            </p>
+            <div className="premium-upgrade-box">
+              <div className="premium-badge-lg">👑 プレミアムプランのご案内</div>
+              <p className="premium-desc">
+                月額 380 円で <strong>全530問以上が解き放題・無制限</strong>！難易度制限なし＆無制限復習機能で一気に合格を目指そう！
+              </p>
+            </div>
+          </div>
+          <div className="modal-actions">
+            <button
+              onClick={() => {
+                setShowLimitModal(false);
+                setCurrentView('dashboard');
+              }}
+              className="btn btn-primary btn-lg"
+            >
+              ダッシュボードへ戻る
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return <div>Loading...</div>;
 }
