@@ -201,6 +201,14 @@ function App() {
     }
   };
 
+  // ユーザーログイン状態変更時に自動的にダッシュボードを開く
+  useEffect(() => {
+    if (user && currentView === 'login') {
+      setCurrentView('dashboard');
+      loadCategories();
+    }
+  }, [user]);
+
   // Supabase Auth セッション監視
   useEffect(() => {
     const checkSession = async () => {
@@ -229,6 +237,15 @@ function App() {
     };
   }, []);
 
+  const DEFAULT_CATEGORIES: Category[] = [
+    { id: 1, name: '歴史・史跡', description: '平安京遷都から幕末・明治維新までの京都の歴史と史跡', icon: '🏯', display_order: 1, is_active: true },
+    { id: 2, name: '神社・寺院', description: '国宝や重要文化財を擁する京都の有名神社・寺院', icon: '⛩️', display_order: 2, is_active: true },
+    { id: 3, name: '建築・庭園・美術', description: '枯山水、回遊式庭園、伝統建築と美術品', icon: '🏡', display_order: 3, is_active: true },
+    { id: 4, name: '芸術・文化', description: '茶道、華道、能楽、京焼き、伝統工芸', icon: '🎨', display_order: 4, is_active: true },
+    { id: 5, name: '祭り・行事', description: '祇園祭、葵祭、時代祭の京都三大祭と四季の行事', icon: '🏮', display_order: 5, is_active: true },
+    { id: 6, name: '食文化', description: '京料理、精進料理、和菓子、おばんざいと京都の食', icon: '🍵', display_order: 6, is_active: true },
+  ];
+
   // データ取得関数
   const loadCategories = async () => {
     setLoading(true);
@@ -239,10 +256,14 @@ function App() {
         .eq('is_active', true)
         .order('display_order');
 
-      if (error) throw error;
-      setCategories(data || []);
+      if (error || !data || data.length === 0) {
+        setCategories(DEFAULT_CATEGORIES);
+      } else {
+        setCategories(data);
+      }
     } catch (err) {
-      console.error('Error loading categories:', err);
+      console.error('Error loading categories, using fallback:', err);
+      setCategories(DEFAULT_CATEGORIES);
     } finally {
       setLoading(false);
     }
