@@ -113,6 +113,43 @@ function App() {
     }
   }, []);
 
+  // Stripe 決済完了検出 ＆ プレミアム権限自動反映
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    if (queryParams.get('payment') === 'success') {
+      handlePaymentSuccess();
+    }
+  }, []);
+
+  const handlePaymentSuccess = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await supabase.from('user_profiles').update({ is_premium: true }).eq('id', session.user.id);
+        setUser((prev: any) => (prev ? { ...prev, isPremium: true } : prev));
+        alert('🎉 プレミアムプランのご登録ありがとうございます！全530問無制限アクセスが解放されました。');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch (e) {
+      console.error('Error enabling premium status:', e);
+    }
+  };
+
+  const handleUpgradeToPremium = () => {
+    // Stripe Checkout リダイレクト (本番URLがある場合は移動、ない場合は案内とテスト有効化)
+    const stripeCheckoutUrl = import.meta.env.VITE_STRIPE_CHECKOUT_URL || '';
+    if (stripeCheckoutUrl) {
+      window.location.href = stripeCheckoutUrl;
+    } else {
+      const confirmDemo = window.confirm(
+        '👑 プレミアムプラン（月額 680 円）\n\nStripe Checkout 連携のデモテストとして、このアカウントのプレミアム権限を有効化しますか？\n(本番運用時はStripeのCheckout URLを設定することで自動連携されます)'
+      );
+      if (confirmDemo) {
+        handlePaymentSuccess();
+      }
+    }
+  };
+
   // Supabase Auth セッション監視
   useEffect(() => {
     const checkSession = async () => {
@@ -1277,7 +1314,7 @@ function App() {
             <div className="premium-upgrade-box">
               <div className="premium-badge-lg">👑 プレミアムプランのご案内</div>
               <p className="premium-desc">
-                月額 380 円で <strong>全530問以上が解き放題・無制限</strong>！難易度制限なし＆無制限復習機能で一気に合格を目指そう！
+                月額 680 円で <strong>全530問以上が解き放題・無制限</strong>！難易度制限なし＆無制限復習機能で一気に合格を目指そう！
               </p>
             </div>
           </div>
@@ -1285,9 +1322,19 @@ function App() {
             <button
               onClick={() => {
                 setShowLimitModal(false);
-                setCurrentView('dashboard');
+                handleUpgradeToPremium();
               }}
               className="btn btn-primary btn-lg"
+              style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', borderColor: '#b45309' }}
+            >
+              👑 月額680円でプレミアム登録 →
+            </button>
+            <button
+              onClick={() => {
+                setShowLimitModal(false);
+                setCurrentView('dashboard');
+              }}
+              className="btn btn-secondary btn-lg"
             >
               ダッシュボードへ戻る
             </button>
