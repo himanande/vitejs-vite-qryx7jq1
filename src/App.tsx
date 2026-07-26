@@ -361,8 +361,7 @@ function App() {
     try {
       let query = supabase
         .from('questions')
-        .select('*')
-        .eq('is_active', true);
+        .select('*');
 
       if (isReviewMode) {
         if (wrongQuestionIds.length === 0) {
@@ -373,10 +372,10 @@ function App() {
           return;
         }
         query = query.in('id', wrongQuestionIds);
-      } else if (selectedTheme) {
-        query = query.eq('theme_id', selectedTheme.id);
       } else if (selectedCategoryIds.length > 0) {
         query = query.in('category_id', selectedCategoryIds);
+      } else if (selectedTheme) {
+        query = query.eq('theme_id', selectedTheme.id);
       } else if (selectedCategory) {
         query = query.eq('category_id', selectedCategory.id);
       }
@@ -386,22 +385,12 @@ function App() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
-
-      let filteredQuestions = data || [];
-
-      // フォールバック（問題が空の場合はダミー問題で強制開始）
-      if (filteredQuestions.length === 0) {
-        filteredQuestions = [
-          { id: 9001, theme_id: 1, category_id: 1, question_text: '京都三大祭のうち、毎年5月に行われる伝統的な祭りはどれか？', option_a: '祇園祭', option_b: '葵祭', option_c: '時代祭', option_d: '五山送り火', correct_answer: 2, explanation: '葵祭は毎年5月15日に行われる京都最古の祭りの一つです。', difficulty_level: 1, is_premium: false, is_active: true },
-          { id: 9002, theme_id: 2, category_id: 2, question_text: '清水寺の国宝に指定されている本堂の通称は何か？', option_a: '清水の舞台', option_b: '地主神社', option_c: '奥の院', option_d: '音羽の滝', correct_answer: 1, explanation: '清水寺の本堂は「清水の舞台」として有名で、懸崖造りの代表例です。', difficulty_level: 1, is_premium: false, is_active: true }
-        ];
-      }
+      let filteredQuestions = (!error && data && data.length > 0) ? data : [];
 
       // 配列のランダムシャッフル
       filteredQuestions = [...filteredQuestions].sort(() => Math.random() - 0.5);
 
-      // 出題数の制限
+      // 出題数の制限（指定された 5, 10, 20, 30, 50, 100問等に正確に切り出し）
       if (selectedQuestionCount > 0 && filteredQuestions.length > selectedQuestionCount) {
         filteredQuestions = filteredQuestions.slice(0, selectedQuestionCount);
       }
@@ -418,17 +407,7 @@ function App() {
       }
       setCurrentView('questions');
     } catch (err) {
-      console.error('Error starting quiz, using fallback:', err);
-      const fallback = [
-        { id: 9001, theme_id: 1, category_id: 1, question_text: '京都三大祭のうち、毎年5月に行われる伝統的な祭りはどれか？', option_a: '祇園祭', option_b: '葵祭', option_c: '時代祭', option_d: '五山送り火', correct_answer: 2, explanation: '葵祭は毎年5月15日に行われる京都最古の祭りの一つです。', difficulty_level: 1, is_premium: false, is_active: true },
-        { id: 9002, theme_id: 2, category_id: 2, question_text: '清水寺の国宝に指定されている本堂の通称は何か？', option_a: '清水の舞台', option_b: '地主神社', option_c: '奥の院', option_d: '音羽の滝', correct_answer: 1, explanation: '清水寺の本堂は「清水の舞台」として有名で、懸崖造りの代表例です。', difficulty_level: 1, is_premium: false, is_active: true }
-      ];
-      setQuestions(fallback);
-      setCurrentQuestion(fallback[0]);
-      setSessionStats({ total: 0, correct: 0 });
-      setSessionWrongIds([]);
-      setAnswerResult(null);
-      setCurrentView('questions');
+      console.error('Error starting quiz:', err);
     } finally {
       setLoading(false);
     }
@@ -1525,14 +1504,6 @@ function App() {
 
         <main className="main">
           <div className="container">
-            <nav className="breadcrumb" aria-label="Breadcrumb">
-              <button onClick={() => setCurrentView('dashboard')}>ホーム</button>
-              <span className="separator">/</span>
-              <button onClick={() => setCurrentView('themes')}>{selectedCategory?.name}</button>
-              <span className="separator">/</span>
-              <span className="current">{selectedTheme?.name}</span>
-            </nav>
-
             <div className="card" style={{ padding: '1.5rem' }}>
               <div className="progress-section">
                 <div className="progress-text">
@@ -1644,21 +1615,13 @@ function App() {
       <div className="app">
         <header className="header">
           <div className="container">
-            <span className="logo">🏯</span>
-            <h1>京都検定3級</h1>
+            <span className="logo">🎉</span>
+            <h1>演習結果レポート</h1>
           </div>
         </header>
 
         <main className="main">
           <div className="container">
-            <nav className="breadcrumb" aria-label="Breadcrumb">
-              <button onClick={() => setCurrentView('dashboard')}>ホーム</button>
-              <span className="separator">/</span>
-              <button onClick={() => setCurrentView('themes')}>{selectedCategory?.name}</button>
-              <span className="separator">/</span>
-              <span className="current">{selectedTheme?.name} (完了)</span>
-            </nav>
-
             <div className="card theme-complete-card">
               <div className="theme-complete-content">
                 <div className="rank-badge-container">
