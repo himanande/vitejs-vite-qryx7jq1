@@ -606,7 +606,7 @@ function App() {
   };
 
   // ログイン画面
-  if (currentView === 'login') {
+  if (!user || currentView === 'login') {
     return (
       <div className="login-container">
         <div className="login-card">
@@ -851,8 +851,8 @@ function App() {
             <div className="header-right">
               <div className="user-info">
                 <User size={20} />
-                <span>{user.name}</span>
-                {user.isPremium && (
+                <span>{user?.name || 'ユーザー'}</span>
+                {user?.isPremium && (
                   <span className="premium-badge">プレミアム</span>
                 )}
               </div>
@@ -1568,7 +1568,28 @@ function App() {
     );
   };
 
-  return <div>Loading...</div>;
+  return (
+    <div className="login-container">
+      <div className="loading" style={{ padding: '3rem', textAlign: 'center' }}>
+        <div className="spinner"></div>
+        <p style={{ marginTop: '1rem', color: '#4b5563', fontWeight: 'bold' }}>データを読み込み中...</p>
+        <button
+          onClick={() => {
+            setLoading(false);
+            if (user) {
+              setCurrentView('dashboard');
+            } else {
+              setCurrentView('login');
+            }
+          }}
+          className="btn btn-secondary"
+          style={{ marginTop: '1.5rem' }}
+        >
+          画面が開かない場合はこちらをタップ
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default App;
