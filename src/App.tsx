@@ -392,7 +392,7 @@ function App() {
         ]);
       }
 
-      let isAdmin = profile?.is_admin || authUser.email?.includes('admin') || authUser.email?.includes('ikeda') || false;
+      let isAdmin = authUser.email === 'ikeda3.note@gmail.com' || profile?.is_admin === true;
 
       setUser({
         id: authUser.id,
