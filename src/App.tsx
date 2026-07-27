@@ -499,6 +499,55 @@ function App() {
     }
   };
 
+  // 演習条件設定画面での「現在の絞り込み条件に該当する問題数」を難易度別に取得
+  const [difficultyCounts, setDifficultyCounts] = useState<{ total: number; byLevel: Record<number, number> }>({
+    total: 0,
+    byLevel: {},
+  });
+
+  const loadDifficultyCounts = async () => {
+    try {
+      let query = supabase.from('questions').select('difficulty_level');
+
+      if (isReviewMode) {
+        if (wrongQuestionIds.length === 0) {
+          setDifficultyCounts({ total: 0, byLevel: {} });
+          return;
+        }
+        query = query.in('id', wrongQuestionIds);
+      } else if (selectedCategoryIds.length > 0) {
+        query = query.in('category_id', selectedCategoryIds);
+      } else if (selectedTheme) {
+        query = query.eq('theme_id', selectedTheme.id);
+      } else if (selectedCategory) {
+        query = query.eq('category_id', selectedCategory.id);
+      }
+
+      const { data, error } = await query;
+      if (error || !data) {
+        setDifficultyCounts({ total: 0, byLevel: {} });
+        return;
+      }
+
+      const byLevel: Record<number, number> = {};
+      data.forEach((q: any) => {
+        byLevel[q.difficulty_level] = (byLevel[q.difficulty_level] || 0) + 1;
+      });
+      setDifficultyCounts({ total: data.length, byLevel });
+    } catch (e) {
+      console.error('Error loading difficulty counts:', e);
+      setDifficultyCounts({ total: 0, byLevel: {} });
+    }
+  };
+
+  // 演習条件設定画面に来た時、または絞り込み条件が変わった時に問題数を再取得
+  useEffect(() => {
+    if (currentView === 'quizSetup') {
+      loadDifficultyCounts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView, selectedTheme, selectedCategory, selectedCategoryIds, isReviewMode]);
+
   // ユーザープロフィールのセットアップ・取得
   const setupUserProfile = async (authUser: any) => {
     let displayName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'ユーザー';
@@ -1299,64 +1348,66 @@ function App() {
               </div>
 
               <div className="card-content" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', padding: '2rem 1.5rem' }}>
-                {/* 対象カテゴリ自由選択 (複数選択) */}
-                <div className="setup-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                    <label className="setup-label" style={{ marginBottom: 0 }}>📂 対象カテゴリを選択（複数選択可能）</label>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedCategoryIds(categories.map((c) => c.id))}
-                        style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '0.25rem', cursor: 'pointer' }}
-                      >
-                        全選択
-                      </button>
+                {/* 対象カテゴリ自由選択 (複数選択)。テーマ/カテゴリを指定して来た場合はすでに対象が確定しているため表示しない */}
+                {!selectedTheme && !selectedCategory && !isReviewMode && (
+                  <div className="setup-group">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <label className="setup-label" style={{ marginBottom: 0 }}>📂 対象カテゴリを選択（複数選択可能）</label>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCategoryIds(categories.map((c) => c.id))}
+                          style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '0.25rem', cursor: 'pointer' }}
+                        >
+                          全選択
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCategoryIds([])}
+                          style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db', borderRadius: '0.25rem', cursor: 'pointer' }}
+                        >
+                          全解除
+                        </button>
+                      </div>
+                    </div>
+                    <div className="chip-group" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                       <button
                         type="button"
                         onClick={() => setSelectedCategoryIds([])}
-                        style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db', borderRadius: '0.25rem', cursor: 'pointer' }}
+                        className={`chip-btn ${selectedCategoryIds.length === 0 ? 'active' : ''}`}
                       >
-                        全解除
+                        🔥 すべてのカテゴリ (全総合)
                       </button>
+                      {categories.map((c) => {
+                        const isSelected = selectedCategoryIds.includes(c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedCategoryIds(selectedCategoryIds.filter((id) => id !== c.id));
+                              } else {
+                                setSelectedCategoryIds([...selectedCategoryIds, c.id]);
+                              }
+                            }}
+                            className={`chip-btn ${isSelected ? 'active' : ''}`}
+                            style={{
+                              background: isSelected ? '#dc2626' : '#f3f4f6',
+                              color: isSelected ? 'white' : '#374151',
+                              borderColor: isSelected ? '#b91c1c' : '#e5e7eb',
+                            }}
+                          >
+                            {isSelected ? '✓ ' : ''}{c.name}
+                          </button>
+                        );
+                      })}
                     </div>
+                    <p style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                      ※ タップして好きなカテゴリを自由に組み合わせて演習できます（指定なしは全カテゴリ対象）
+                    </p>
                   </div>
-                  <div className="chip-group" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCategoryIds([])}
-                      className={`chip-btn ${selectedCategoryIds.length === 0 ? 'active' : ''}`}
-                    >
-                      🔥 すべてのカテゴリ (全総合)
-                    </button>
-                    {categories.map((c) => {
-                      const isSelected = selectedCategoryIds.includes(c.id);
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedCategoryIds(selectedCategoryIds.filter((id) => id !== c.id));
-                            } else {
-                              setSelectedCategoryIds([...selectedCategoryIds, c.id]);
-                            }
-                          }}
-                          className={`chip-btn ${isSelected ? 'active' : ''}`}
-                          style={{
-                            background: isSelected ? '#dc2626' : '#f3f4f6',
-                            color: isSelected ? 'white' : '#374151',
-                            borderColor: isSelected ? '#b91c1c' : '#e5e7eb',
-                          }}
-                        >
-                          {isSelected ? '✓ ' : ''}{c.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.5rem' }}>
-                    ※ タップして好きなカテゴリを自由に組み合わせて演習できます（指定なしは全カテゴリ対象）
-                  </p>
-                </div>
+                )}
 
                 {/* 出題数選択 */}
                 <div className="setup-group">
@@ -1414,24 +1465,35 @@ function App() {
 
                 {/* 難易度選択 */}
                 <div className="setup-group">
-                  <label className="setup-label">🎯 難易度を選択</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <label className="setup-label" style={{ marginBottom: 0 }}>🎯 難易度を選択</label>
+                    <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+                      現在の条件で{difficultyCounts.total}問が対象
+                    </span>
+                  </div>
                   <div className="chip-group">
                     {[
-                      { label: 'すべて', value: 0 },
-                      { label: '★1 基礎', value: 1 },
-                      { label: '★2 標準', value: 2 },
-                      { label: '★3 難問', value: 3 },
+                      { label: 'すべて', value: 0, count: difficultyCounts.total },
+                      { label: '★1 基礎', value: 1, count: difficultyCounts.byLevel[1] || 0 },
+                      { label: '★2 標準', value: 2, count: difficultyCounts.byLevel[2] || 0 },
+                      { label: '★3 難問', value: 3, count: difficultyCounts.byLevel[3] || 0 },
                     ].map((item) => (
                       <button
                         key={item.value}
                         type="button"
                         onClick={() => setSelectedDifficulty(item.value)}
+                        disabled={item.value !== 0 && item.count === 0}
                         className={`chip-btn ${selectedDifficulty === item.value ? 'active' : ''}`}
                       >
-                        {item.label}
+                        {item.label} ({item.count}問)
                       </button>
                     ))}
                   </div>
+                  {selectedDifficulty !== 0 && (difficultyCounts.byLevel[selectedDifficulty] || 0) === 0 && (
+                    <p style={{ fontSize: '0.8rem', color: '#dc2626', marginTop: '0.5rem' }}>
+                      ※ この条件では該当する問題が0問です。難易度を変えるか「すべて」を選んでください。
+                    </p>
+                  )}
                 </div>
 
                 <div style={{ paddingTop: '1.5rem', borderTop: '1px solid #e5e7eb' }}>
