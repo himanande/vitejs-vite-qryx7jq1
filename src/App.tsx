@@ -334,19 +334,55 @@ function App() {
     }
   };
 
+  const DEFAULT_THEMES: Theme[] = [
+    // 1. 歴史・史跡
+    { id: 1, category_id: 1, name: '平安京・古代の歴史', description: '桓武天皇の平安京遷都から平安時代の歴史と史跡', display_order: 1 },
+    { id: 2, category_id: 1, name: '鎌倉・室町・南北朝時代', description: '建武の新政、足利将軍家、金閣・銀閣と室町文化', display_order: 2 },
+    { id: 3, category_id: 1, name: '戦国・安土桃山時代', description: '織田信長、豊臣秀吉の京都復興と伏見城', display_order: 3 },
+    { id: 4, category_id: 1, name: '江戸時代・幕末維新', description: '新選組、二条城の大政奉還と明治維新の歴史', display_order: 4 },
+    // 2. 神社・寺院
+    { id: 5, category_id: 2, name: '世界遺産の寺社', description: '清水寺、金閣寺、銀閣寺、二条城など世界文化遺産', display_order: 5 },
+    { id: 6, category_id: 2, name: '洛東・東山の名刹', description: '南禅寺、八坂神社、伏見稲荷大社、平安神宮', display_order: 6 },
+    { id: 7, category_id: 2, name: '洛北・洛西・洛南の寺社', description: '鞍馬・貴船、嵐山・天龍寺、醍醐寺、東寺', display_order: 7 },
+    { id: 8, category_id: 2, name: '祇園・市街地の神社佛閣', description: '錦天満宮、六角堂、建仁寺、御所周辺の寺社', display_order: 8 },
+    // 3. 建築・庭園・美術
+    { id: 9, category_id: 3, name: '枯山水・池泉回遊式庭園', description: '龍安寺の石庭、西芳寺（苔寺）、桂離宮の美', display_order: 9 },
+    { id: 10, category_id: 3, name: '国宝建築・城郭', description: '三十三間堂、二条城二の丸御殿、数寄屋建築', display_order: 10 },
+    { id: 11, category_id: 3, name: '仏像・国宝絵画・障壁画', description: '風神雷神図屏風、狩野派の障壁画、仏師の系譜', display_order: 11 },
+    { id: 12, category_id: 3, name: '現代建築・文化施設', description: '京都駅ビル、京都国立博物館、京都市京セラ美術館', display_order: 12 },
+    // 4. 芸術・文化
+    { id: 13, category_id: 4, name: '茶道・華道・香道', description: '千利休と三千家、池坊の華道、京の芸道歴史', display_order: 13 },
+    { id: 14, category_id: 4, name: '京舞・花街文化', description: '祇園の舞妓・芸妓、都をどり、花街の伝統', display_order: 14 },
+    { id: 15, category_id: 4, name: '西陣織・京友禅・伝統工芸', description: '伝統工芸品、京焼・清水焼、京扇子、京漆器', display_order: 15 },
+    { id: 16, category_id: 4, name: '能楽・狂言・歌舞伎', description: '観世流能楽、茂山狂言、南座の吉例顔見世興行', display_order: 16 },
+    // 5. 祭り・行事
+    { id: 17, category_id: 5, name: '日本三大祭・祇園祭', description: '7月1ヶ月間の山鉾巡行、宵山と伝統行事', display_order: 17 },
+    { id: 18, category_id: 5, name: '葵祭・時代祭', description: '新緑の路頭の儀（葵祭）と時代行列（時代祭）', display_order: 18 },
+    { id: 19, category_id: 5, name: '五山送り火・お盆行事', description: '8月16日の大文字送り火と万灯会', display_order: 19 },
+    { id: 20, category_id: 5, name: '年中行事・季節の風物詩', description: '初詣、節分追儺式、紅葉と青もみじ', display_order: 20 },
+    // 6. 食文化
+    { id: 21, category_id: 6, name: '京料理・精進料理', description: '懐石料理、川床、禅寺の伝統精進料理', display_order: 21 },
+    { id: 22, category_id: 6, name: '京菓子・和菓子', description: '生八ツ橋、生菓子、季節の行事菓子', display_order: 22 },
+    { id: 23, category_id: 6, name: '京野菜・おばんざい', description: '聖護院かぶ、万願寺とうがらし、京つけもの', display_order: 23 },
+    { id: 24, category_id: 6, name: '伏見の日本酒・宇治茶', description: '伏見の酒蔵名水、宇治の高級玉露と抹茶', display_order: 24 },
+  ];
+
   const loadThemes = async (categoryId: number) => {
     try {
       const { data, error } = await supabase
         .from('themes')
         .select('*')
         .eq('category_id', categoryId)
-        .eq('is_active', true)
         .order('display_order');
 
-      if (error) throw error;
-      setThemes(data || []);
+      const filtered = (!error && data && data.length > 0)
+        ? data
+        : DEFAULT_THEMES.filter((t) => t.category_id === categoryId);
+
+      setThemes(filtered);
     } catch (err) {
-      console.error('Error loading themes:', err);
+      console.error('Error loading themes, using fallback:', err);
+      setThemes(DEFAULT_THEMES.filter((t) => t.category_id === categoryId));
     }
   };
 
@@ -589,57 +625,45 @@ function App() {
 
   const handleThemeSelect = (theme: Theme) => {
     setSelectedTheme(theme);
+    setSelectedCategoryIds([]);
     setIsReviewMode(false);
     setSelectedQuestionCount(10);
     setSelectedDifficulty(0);
-    setIsSetupReady(false);
+    setIsSetupReady(true);
     setCurrentView('quizSetup');
-
-    setTimeout(() => {
-      setIsSetupReady(true);
-    }, 300);
   };
 
   const handleCategoryQuizSetup = (category: Category) => {
     setSelectedCategory(category);
     setSelectedTheme(null);
+    setSelectedCategoryIds([category.id]);
     setIsReviewMode(false);
     setSelectedQuestionCount(10);
     setSelectedDifficulty(0);
-    setIsSetupReady(false);
+    setIsSetupReady(true);
     setCurrentView('quizSetup');
-
-    setTimeout(() => {
-      setIsSetupReady(true);
-    }, 300);
   };
 
   const handleAllQuizSetup = () => {
     setSelectedCategory(null);
     setSelectedTheme(null);
+    setSelectedCategoryIds([]);
     setIsReviewMode(false);
     setSelectedQuestionCount(10);
     setSelectedDifficulty(0);
-    setIsSetupReady(false);
+    setIsSetupReady(true);
     setCurrentView('quizSetup');
-
-    setTimeout(() => {
-      setIsSetupReady(true);
-    }, 300);
   };
 
   const handleReviewQuizSetup = () => {
     setSelectedCategory(null);
     setSelectedTheme(null);
+    setSelectedCategoryIds([]);
     setIsReviewMode(true);
     setSelectedQuestionCount(10);
     setSelectedDifficulty(0);
-    setIsSetupReady(false);
+    setIsSetupReady(true);
     setCurrentView('quizSetup');
-
-    setTimeout(() => {
-      setIsSetupReady(true);
-    }, 300);
   };
 
   const handleAnswer = (selectedOption: number) => {
