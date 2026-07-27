@@ -16,6 +16,7 @@ interface Category {
   name: string;
   description: string;
   display_order: number;
+  is_active?: boolean;
 }
 
 interface Theme {
@@ -24,6 +25,7 @@ interface Theme {
   name: string;
   description: string;
   display_order: number;
+  is_active?: boolean;
 }
 
 interface Question {
@@ -65,7 +67,6 @@ function App() {
   const [selectedQuestionCount, setSelectedQuestionCount] = useState<number>(10); // 0は全問
   const [selectedDifficulty, setSelectedDifficulty] = useState<number>(0); // 0はすべて
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]); // 複数選択用カテゴリID
-  const [isSetupReady, setIsSetupReady] = useState(false);
   const [answerResult, setAnswerResult] = useState<any>(null);
   const [logoTapCount, setLogoTapCount] = useState(0);
 
@@ -85,15 +86,8 @@ function App() {
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // 復習機能用 State (localStorage と連携)
-  const [wrongQuestionIds, setWrongQuestionIds] = useState<number[]>(() => {
-    try {
-      const saved = localStorage.getItem('kyotokentei3_wrong_questions');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // 復習機能用 State (localStorage と連携、ユーザーIDごとに分離)
+  const [wrongQuestionIds, setWrongQuestionIds] = useState<number[]>([]);
   const [isReviewMode, setIsReviewMode] = useState<boolean>(false);
   const [sessionWrongIds, setSessionWrongIds] = useState<number[]>([]);
 
@@ -109,8 +103,9 @@ function App() {
 
   const saveWrongQuestions = (newIds: number[]) => {
     setWrongQuestionIds(newIds);
+    if (!user?.id) return;
     try {
-      localStorage.setItem('kyotokentei3_wrong_questions', JSON.stringify(newIds));
+      localStorage.setItem(`kyotokentei3_wrong_questions_${user.id}`, JSON.stringify(newIds));
     } catch (e) {
       console.error('Failed to save wrong questions to localStorage', e);
     }
@@ -211,20 +206,31 @@ function App() {
     );
   };
 
-  // 本日解答数の初期化と日付自動リセット
+  // ユーザーごとの本日解答数・間違えた問題リストの読み込み(ユーザー切り替え時にも正しく分離)
   useEffect(() => {
+    if (!user?.id) return;
+
     const today = getTodayString();
-    const savedDate = localStorage.getItem('kyotokentei3_last_date');
-    const savedCount = localStorage.getItem('kyotokentei3_daily_count');
+    const dateKey = `kyotokentei3_last_date_${user.id}`;
+    const countKey = `kyotokentei3_daily_count_${user.id}`;
+    const savedDate = localStorage.getItem(dateKey);
+    const savedCount = localStorage.getItem(countKey);
 
     if (savedDate !== today) {
-      localStorage.setItem('kyotokentei3_last_date', today);
-      localStorage.setItem('kyotokentei3_daily_count', '0');
+      localStorage.setItem(dateKey, today);
+      localStorage.setItem(countKey, '0');
       setUserStats((prev) => ({ ...prev, dailyQuestions: 0 }));
-    } else if (savedCount) {
-      setUserStats((prev) => ({ ...prev, dailyQuestions: parseInt(savedCount, 10) || 0 }));
+    } else {
+      setUserStats((prev) => ({ ...prev, dailyQuestions: parseInt(savedCount || '0', 10) || 0 }));
     }
-  }, []);
+
+    try {
+      const savedWrong = localStorage.getItem(`kyotokentei3_wrong_questions_${user.id}`);
+      setWrongQuestionIds(savedWrong ? JSON.parse(savedWrong) : []);
+    } catch {
+      setWrongQuestionIds([]);
+    }
+  }, [user?.id]);
 
   // Stripe 決済完了検出 ＆ プレミアム権限自動反映
   useEffect(() => {
@@ -302,13 +308,14 @@ function App() {
     };
   }, []);
 
+  // Supabase接続不可時のフォールバック。実DBの構成(2026-07-25時点)と一致させること。
   const DEFAULT_CATEGORIES: Category[] = [
-    { id: 1, name: '歴史・史跡', description: '平安京遷都から幕末・明治維新までの京都の歴史と史跡', icon: '🏯', display_order: 1, is_active: true },
-    { id: 2, name: '神社・寺院', description: '国宝や重要文化財を擁する京都の有名神社・寺院', icon: '⛩️', display_order: 2, is_active: true },
-    { id: 3, name: '建築・庭園・美術', description: '枯山水、回遊式庭園、伝統建築と美術品', icon: '🏡', display_order: 3, is_active: true },
-    { id: 4, name: '芸術・文化', description: '茶道、華道、能楽、京焼き、伝統工芸', icon: '🎨', display_order: 4, is_active: true },
-    { id: 5, name: '祭り・行事', description: '祇園祭、葵祭、時代祭の京都三大祭と四季の行事', icon: '🏮', display_order: 5, is_active: true },
-    { id: 6, name: '食文化', description: '京料理、精進料理、和菓子、おばんざいと京都の食', icon: '🍵', display_order: 6, is_active: true },
+    { id: 1, name: '歴史・史跡', description: '京都の歴史と史跡に関する問題', display_order: 1, is_active: true },
+    { id: 2, name: '神社・寺院', description: '京都の神社と寺院に関する問題', display_order: 2, is_active: true },
+    { id: 6, name: '芸術・文化', description: '京都の芸術と文化に関する問題', display_order: 3, is_active: true },
+    { id: 5, name: '建築・庭園・美術', description: '京都の建築、庭園、美術に関する問題', display_order: 4, is_active: true },
+    { id: 3, name: '食文化', description: '京都の食文化に関する問題', display_order: 5, is_active: true },
+    { id: 4, name: '祭り・行事', description: '京都の祭りと行事に関する問題', display_order: 6, is_active: true },
   ];
 
   // データ取得関数
@@ -334,37 +341,41 @@ function App() {
     }
   };
 
+  // Supabase接続不可時のフォールバック。実DBの構成(2026-07-25時点)と一致させること。
+  // is_active: false のテーマ(旧構成の重複データ)はloadThemes側でフィルタされる。
   const DEFAULT_THEMES: Theme[] = [
     // 1. 歴史・史跡
-    { id: 1, category_id: 1, name: '平安京・古代の歴史', description: '桓武天皇の平安京遷都から平安時代の歴史と史跡', display_order: 1 },
-    { id: 2, category_id: 1, name: '鎌倉・室町・南北朝時代', description: '建武の新政、足利将軍家、金閣・銀閣と室町文化', display_order: 2 },
-    { id: 3, category_id: 1, name: '戦国・安土桃山時代', description: '織田信長、豊臣秀吉の京都復興と伏見城', display_order: 3 },
-    { id: 4, category_id: 1, name: '江戸時代・幕末維新', description: '新選組、二条城の大政奉還と明治維新の歴史', display_order: 4 },
+    { id: 1, category_id: 1, name: '四神相応', description: '京都の位置と四神相応の教えについて', display_order: 1, is_active: true },
+    { id: 2, category_id: 1, name: '嵐山・渡月橋', description: '嵐山地域と渡月橋について', display_order: 2, is_active: true },
+    { id: 3, category_id: 1, name: '嵯峨野観光鉄道・近代交通', description: '嵯峨野観光鉄道について', display_order: 3, is_active: true },
     // 2. 神社・寺院
-    { id: 5, category_id: 2, name: '世界遺産の寺社', description: '清水寺、金閣寺、銀閣寺、二条城など世界文化遺産', display_order: 5 },
-    { id: 6, category_id: 2, name: '洛東・東山の名刹', description: '南禅寺、八坂神社、伏見稲荷大社、平安神宮', display_order: 6 },
-    { id: 7, category_id: 2, name: '洛北・洛西・洛南の寺社', description: '鞍馬・貴船、嵐山・天龍寺、醍醐寺、東寺', display_order: 7 },
-    { id: 8, category_id: 2, name: '祇園・市街地の神社佛閣', description: '錦天満宮、六角堂、建仁寺、御所周辺の寺社', display_order: 8 },
-    // 3. 建築・庭園・美術
-    { id: 9, category_id: 3, name: '枯山水・池泉回遊式庭園', description: '龍安寺の石庭、西芳寺（苔寺）、桂離宮の美', display_order: 9 },
-    { id: 10, category_id: 3, name: '国宝建築・城郭', description: '三十三間堂、二条城二の丸御殿、数寄屋建築', display_order: 10 },
-    { id: 11, category_id: 3, name: '仏像・国宝絵画・障壁画', description: '風神雷神図屏風、狩野派の障壁画、仏師の系譜', display_order: 11 },
-    { id: 12, category_id: 3, name: '現代建築・文化施設', description: '京都駅ビル、京都国立博物館、京都市京セラ美術館', display_order: 12 },
-    // 4. 芸術・文化
-    { id: 13, category_id: 4, name: '茶道・華道・香道', description: '千利休と三千家、池坊の華道、京の芸道歴史', display_order: 13 },
-    { id: 14, category_id: 4, name: '京舞・花街文化', description: '祇園の舞妓・芸妓、都をどり、花街の伝統', display_order: 14 },
-    { id: 15, category_id: 4, name: '西陣織・京友禅・伝統工芸', description: '伝統工芸品、京焼・清水焼、京扇子、京漆器', display_order: 15 },
-    { id: 16, category_id: 4, name: '能楽・狂言・歌舞伎', description: '観世流能楽、茂山狂言、南座の吉例顔見世興行', display_order: 16 },
-    // 5. 祭り・行事
-    { id: 17, category_id: 5, name: '日本三大祭・祇園祭', description: '7月1ヶ月間の山鉾巡行、宵山と伝統行事', display_order: 17 },
-    { id: 18, category_id: 5, name: '葵祭・時代祭', description: '新緑の路頭の儀（葵祭）と時代行列（時代祭）', display_order: 18 },
-    { id: 19, category_id: 5, name: '五山送り火・お盆行事', description: '8月16日の大文字送り火と万灯会', display_order: 19 },
-    { id: 20, category_id: 5, name: '年中行事・季節の風物詩', description: '初詣、節分追儺式、紅葉と青もみじ', display_order: 20 },
-    // 6. 食文化
-    { id: 21, category_id: 6, name: '京料理・精進料理', description: '懐石料理、川床、禅寺の伝統精進料理', display_order: 21 },
-    { id: 22, category_id: 6, name: '京菓子・和菓子', description: '生八ツ橋、生菓子、季節の行事菓子', display_order: 22 },
-    { id: 23, category_id: 6, name: '京野菜・おばんざい', description: '聖護院かぶ、万願寺とうがらし、京つけもの', display_order: 23 },
-    { id: 24, category_id: 6, name: '伏見の日本酒・宇治茶', description: '伏見の酒蔵名水、宇治の高級玉露と抹茶', display_order: 24 },
+    { id: 9, category_id: 2, name: '寺社を建てた人物（建立者）', description: '京都の主要寺社を建立・再建した人物について学ぶ', display_order: 1, is_active: true },
+    { id: 4, category_id: 2, name: '清水寺（本尊・縁起・舞台）', description: '清水寺について', display_order: 2, is_active: true },
+    { id: 11, category_id: 2, name: '天龍寺×足利尊氏×夢窓疎石', description: '天龍寺の創建と足利尊氏・夢窓疎石の関係について学ぶ', display_order: 3, is_active: true },
+    { id: 5, category_id: 2, name: '伏見稲荷大社', description: '伏見稲荷大社について', display_order: 4, is_active: false },
+    { id: 10, category_id: 2, name: '嵯峨野観光鉄道', description: '嵯峨野観光鉄道（トロッコ列車）と沿線の寺社について学ぶ', display_order: 5, is_active: false },
+    // 3. 食文化
+    { id: 6, category_id: 3, name: '京野菜', description: '京野菜について', display_order: 1, is_active: true },
+    { id: 22, category_id: 3, name: '京懐石・一汁三菜', description: '京料理の基本と懐石料理の作法について学ぶ', display_order: 2, is_active: true },
+    { id: 23, category_id: 3, name: '京菓子', description: '京都の伝統菓子と和菓子文化について学ぶ', display_order: 3, is_active: true },
+    { id: 24, category_id: 3, name: '伏見の清酒', description: '伏見の酒造りの歴史と代表的な銘酒について学ぶ', display_order: 4, is_active: true },
+    // 4. 祭り・行事
+    { id: 7, category_id: 4, name: '祇園祭', description: '祇園祭について', display_order: 1, is_active: true },
+    { id: 25, category_id: 4, name: '年中行事', description: '京都の年中行事と季節の祭りについて学ぶ', display_order: 2, is_active: true },
+    { id: 26, category_id: 4, name: '八朔・事始め', description: '八朔の風習と事始めについて学ぶ', display_order: 3, is_active: true },
+    // 5. 建築・庭園・美術
+    { id: 8, category_id: 5, name: '金閣・銀閣', description: '金閣寺について', display_order: 1, is_active: true },
+    { id: 18, category_id: 5, name: '桂離宮とブルーノ・タウト', description: '桂離宮の建築美とブルーノ・タウトの評価について学ぶ', display_order: 2, is_active: true },
+    { id: 19, category_id: 5, name: '庭園石組・作庭技法', description: '日本庭園の石組みと作庭技法について学ぶ', display_order: 3, is_active: true },
+    { id: 20, category_id: 5, name: '近代建築', description: '京都の近代建築の特徴と代表的建造物について学ぶ', display_order: 4, is_active: true },
+    { id: 21, category_id: 5, name: '京町家・伝統建築', description: '京町家の構造と伝統的建築様式について学ぶ', display_order: 5, is_active: true },
+    // 6. 芸術・文化
+    { id: 12, category_id: 6, name: '茶屋と家元', description: '京都の茶道の家元と茶屋文化について学ぶ', display_order: 1, is_active: true },
+    { id: 13, category_id: 6, name: '京ことば', description: '京都特有の言葉・方言について学ぶ', display_order: 2, is_active: true },
+    { id: 14, category_id: 6, name: '伝統工芸', description: '西陣織・京染めなど京都の伝統工芸について学ぶ', display_order: 3, is_active: true },
+    { id: 15, category_id: 6, name: '近代日本画家', description: '京都を拠点に活躍した近代の日本画家について学ぶ', display_order: 4, is_active: true },
+    { id: 16, category_id: 6, name: '京焼・清水焼', description: '京焼・清水焼の歴史と代表的な作家について学ぶ', display_order: 5, is_active: true },
+    { id: 17, category_id: 6, name: 'いけばな・池坊', description: 'いけばなの発祥と池坊家元について学ぶ', display_order: 6, is_active: true },
   ];
 
   const loadThemes = async (categoryId: number) => {
@@ -373,16 +384,17 @@ function App() {
         .from('themes')
         .select('*')
         .eq('category_id', categoryId)
+        .eq('is_active', true)
         .order('display_order');
 
       const filtered = (!error && data && data.length > 0)
         ? data
-        : DEFAULT_THEMES.filter((t) => t.category_id === categoryId);
+        : DEFAULT_THEMES.filter((t) => t.category_id === categoryId && t.is_active !== false);
 
       setThemes(filtered);
     } catch (err) {
       console.error('Error loading themes, using fallback:', err);
-      setThemes(DEFAULT_THEMES.filter((t) => t.category_id === categoryId));
+      setThemes(DEFAULT_THEMES.filter((t) => t.category_id === categoryId && t.is_active !== false));
     }
   };
 
@@ -629,7 +641,6 @@ function App() {
     setIsReviewMode(false);
     setSelectedQuestionCount(10);
     setSelectedDifficulty(0);
-    setIsSetupReady(true);
     setCurrentView('quizSetup');
   };
 
@@ -640,7 +651,6 @@ function App() {
     setIsReviewMode(false);
     setSelectedQuestionCount(10);
     setSelectedDifficulty(0);
-    setIsSetupReady(true);
     setCurrentView('quizSetup');
   };
 
@@ -651,7 +661,6 @@ function App() {
     setIsReviewMode(false);
     setSelectedQuestionCount(10);
     setSelectedDifficulty(0);
-    setIsSetupReady(true);
     setCurrentView('quizSetup');
   };
 
@@ -662,7 +671,6 @@ function App() {
     setIsReviewMode(true);
     setSelectedQuestionCount(10);
     setSelectedDifficulty(0);
-    setIsSetupReady(true);
     setCurrentView('quizSetup');
   };
 
@@ -693,8 +701,10 @@ function App() {
     }
 
     const newDailyCount = userStats.dailyQuestions + 1;
-    localStorage.setItem('kyotokentei3_daily_count', newDailyCount.toString());
-    localStorage.setItem('kyotokentei3_last_date', getTodayString());
+    if (user?.id) {
+      localStorage.setItem(`kyotokentei3_daily_count_${user.id}`, newDailyCount.toString());
+      localStorage.setItem(`kyotokentei3_last_date_${user.id}`, getTodayString());
+    }
 
     setUserStats((prev) => ({
       ...prev,
@@ -710,6 +720,7 @@ function App() {
   };
 
   const goToNextQuestion = () => {
+    if (!currentQuestion) return;
     const currentIndex = questions.findIndex(
       (q) => q.id === currentQuestion.id
     );
@@ -1101,7 +1112,7 @@ function App() {
 
             {/* 総合演習スタートカード */}
             <div className="card" style={{ marginBottom: '1.5rem', background: 'linear-gradient(135deg, #fef2f2 0%, #ffe4e6 100%)', border: '1px solid #fecdd3' }}>
-              <div className="card-content" style={{ display: 'flex', alignItems: 'center', justify_content: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+              <div className="card-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
                   <h3 style={{ fontSize: '1.25rem', color: '#9f1239', fontWeight: 'bold', marginBottom: '0.25rem' }}>
                     🔥 全カテゴリ総合ランダム演習

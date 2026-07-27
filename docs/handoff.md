@@ -138,9 +138,38 @@ ORDER BY theme_id;
 
 ## 既知の細かい問題（余裕があれば直す）
 
-- `App.tsx` の問題画面の `<header>` 内に `// ... 既存の問題表示コード` という文字列が JSX として残っており、画面にそのまま表示される（ヘッダーが未実装状態）
-- ダッシュボードの card-header 内に開発用の「🔍 データ診断」ボタンと JSX 内コメント文字列が残っている（削除してよい）
 - テーマ完了画面の成績表示はセッション累計（userStats）であり、そのテーマ単体の成績ではない
+
+## 2026-07-27 のバグ調査・修正（Claude Code）
+
+実DB(`wcsurvnglqazxlckgxxg`)に直接クエリして検証した上で、以下を修正・確認した。
+
+### 修正済み
+
+1. **`npm run build` が型エラーで完全に失敗していた問題を解消**（最重要）。`tsc -b` が13件のエラーで止まり `vite build` まで到達しない状態だった。StackBlitzの `npm run dev` は型チェックをスキップするため気づきにくかった。
+   - `supabaseClient.js` → `supabaseClient.ts` にリネーム（型宣言不足エラーの解消）
+   - `Category`/`Theme` インターフェースに `is_active` を追加、`DEFAULT_CATEGORIES` の未使用 `icon` フィールドを削除
+   - `App.tsx` の `justify_content` タイポを `justifyContent` に修正（総合演習カードのレイアウト崩れも解消）
+   - `goToNextQuestion()` に `currentQuestion` の null チェックを追加
+   - 未使用の `isSetupReady` state を削除
+   - `main.tsx` の import を `verbatimModuleSyntax` 対応に修正
+   - `npm run build` が正常に完了することを確認済み
+2. **`loadThemes()` が `is_active` を見ておらず、無効化済みテーマが表示される問題を修正**。テーマID 5「伏見稲荷大社」・ID 10「嵯峨野観光鉄道」（どちらも category_id=2、問題0件）は `db_fix_structure.sql` で無効化済みだったが、テーマ選択画面に表示され続け、選択すると「📝 問題準備中」で行き止まりになっていた。クエリに `.eq('is_active', true)` を追加。
+3. **`DEFAULT_CATEGORIES`/`DEFAULT_THEMES`（Supabase接続失敗時のフォールバック）が実DBと不整合だった問題を修正**。2026-07-22のカテゴリ再編成（`db_fix_structure.sql`）に追従しておらず、フォールバック発動時に間違ったカテゴリ名・テーマ構成（24件、実際は26件）が表示される状態だった。実DBの内容に同期済み。
+4. **`localStorage` の「間違えた問題」リストと「本日の解答数」がユーザーIDに紐づいていなかった問題を修正**。同一ブラウザで別アカウントに切り替えると、前のユーザーの復習リストや本日の残り問題数が引き継がれてしまっていた。キーを `kyotokentei3_wrong_questions_${user.id}` のように user.id でスコープするよう変更。
+
+### 要対応（このリポジトリの外、Supabase側の作業）
+
+5. **`user_profiles` テーブルの権限設定漏れ（未修正・要SQL実行）**。anonキーで直接クエリすると `permission denied for table user_profiles`（42501: GRANT自体が無い）が返ってくることを確認した。`categories`/`themes`/`questions` は「Public Read」ポリシー完了済みだが `user_profiles` だけ設定が漏れている可能性が高い。`authenticated` ロールにも同様の漏れがある場合、以下が起きる:
+   - プレミアム登録してもDBに保存/反映されず、次回ログインで無料会員に戻る
+   - 管理者ダッシュボードのユーザー一覧が常に0件になる
+   - `setupUserProfile()` のプロフィール作成(upsert)が毎回サイレントに失敗する
+   → `docs/fix_user_profiles_permissions.sql` を作成済み。Supabase SQL Editor で実行し、実際にログインして「プレミアム登録→ログアウト→再ログインで維持されるか」「管理画面にユーザーが表示されるか」を確認すること。
+
+### 未修正のまま残した項目（設計上の注意点として記録）
+
+- 管理者判定が `authStr.includes('ikeda')` という緩い部分一致や、ロゴ5回タップでの強制付与（クライアント側のReact stateのみ）に依存している。実際のアクセス制御は上記のRLSポリシー側で担保する必要がある。
+- Stripe決済は実接続されていない。`VITE_STRIPE_CHECKOUT_URL` が未設定のため「プレミアム登録」ボタンは常に `window.confirm` によるデモ有効化にフォールバックする。本文書の「Stripe決済連携完了」という記載は実態と異なる。
 
 ---
 
