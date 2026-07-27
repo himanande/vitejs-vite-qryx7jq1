@@ -1,6 +1,6 @@
 -- ============================================================
 -- user_profiles テーブルの権限修正SQL
--- 作成日: 2026-07-27
+-- 作成日: 2026-07-27（2026-07-27 実カラム確認結果に基づき改訂）
 -- 目的:
 --   anonキーで user_profiles を直接検証したところ、
 --   「permission denied for table user_profiles」(42501)というエラーが返り、
@@ -10,8 +10,23 @@
 --     - ログイン時のプロフィール読み込み/作成 (setupUserProfile)
 --     - プレミアム状態の保存・反映 (handlePaymentSuccess / toggleUserPremium)
 --     - 管理者ダッシュボードのユーザー一覧 (loadAdminStats)
+--
+--   さらに実カラム構成を確認したところ、App.tsx のコードが読み書きしようと
+--   している `is_admin` 列がテーブルに存在しないことが判明した（下記実カラム参照）。
+--   これは元の本SQLをそのまま実行すると
+--   「column admin_row.is_admin does not exist」で失敗する原因でもあった。
+--   このSQLでは STEP 0 として不足カラムを安全に追加してから進める。
+--
+--   実カラム(2026-07-27時点): id, display_name, avatar_url, provider,
+--   is_premium, daily_question_count, total_questions_answered,
+--   total_correct_answers, created_at （is_admin は無かった）
+--
 --   Supabase SQL Editor で実行すること。
 -- ============================================================
+
+-- STEP 0: App.tsx が前提としている is_admin 列が無いので追加（既存データは壊さない安全な追加のみ）
+ALTER TABLE public.user_profiles
+  ADD COLUMN IF NOT EXISTS is_admin boolean NOT NULL DEFAULT false;
 
 -- STEP 1: authenticated ロールに基本権限を付与
 GRANT SELECT, INSERT, UPDATE ON public.user_profiles TO authenticated;
