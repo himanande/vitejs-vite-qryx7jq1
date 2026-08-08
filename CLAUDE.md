@@ -1,121 +1,57 @@
-# 京都検定 3 級 Web 問題集アプリ
+# 京都検定 3 級 Web 問題集アプリ(v2)
 
 ## プロジェクト概要
 
-京都検定 3 級の合格を目指すユーザー向けのフリーミアム Web 問題集アプリです。
+京都検定 3 級の合格を目指すユーザー向けのフリーミアム Web 問題集アプリ。
+2026-08 に v1(モノリス構成)を廃止し、`docs/requirements-v2.md` の要件定義に基づいて再構築した。
 
-**目標**: 質の高い問題データ（目標 500 問）を用い、京都検定 3 級の合格率向上を実現する
+**ドキュメントの優先順位**: `docs/requirements-v2.md` が唯一の正。
+`docs/handoff.md` / `docs/system-overview.md` は v1 時代の資料であり、実態と乖離した記載を含む(参考程度に扱う)。
 
 ## 技術スタック
 
-- **フロントエンド**: React + TypeScript + Vite
-- **バックエンド**: Supabase (PostgreSQL + REST API)
-- **開発環境**: StackBlitz（本番開発）
-- **スタイリング**: ピュア CSS（TailwindCSS 不使用）
-- **認証**: Supabase Auth（現在はデモ認証）
-- **決済**: Stripe（未実装）
+- **フロントエンド**: React 19 + TypeScript + Vite
+- **バックエンド**: Supabase(PostgreSQL + Auth + RLS)
+- **スタイリング**: ピュア CSS(TailwindCSS 不使用)。コンポーネントごとに同名 .css を配置
+- **テスト**: Vitest + React Testing Library(`npm test`)
+- **CI**: GitHub Actions(push ごとに build + test)
 
 ## アプリ構造
 
-カテゴリ(6 個) → テーマ(25 個) → 問題(80+個、目標 500 個)
+カテゴリ(6) → テーマ(24・有効のみ) → 問題(534 問)
 
-### カテゴリ ID
-
-1. 歴史・史跡
-2. 神社・寺院
-3. 食文化
-4. 祭りと行事
-5. 建築・庭園・美術
-6. 芸術・文化
+演習モード: テーマ別 / カテゴリ別(複数選択可) / 総合(全問ランダム)
 
 ## データベース
 
-### 主要テーブル
+- **Supabase プロジェクト**: `wcsurvnglqazxlckgxxg`(URL・anon key は `.env`)
+- **テーブル**: categories / themes / questions / answer_history / user_profiles
+- **マイグレーション**: `docs/migration_v2.sql`(冪等。Supabase SQL Editor で実行)
+- **RLS は全テーブル有効**。1 日 10 問制限も answer_history の INSERT ポリシーで DB 側で強制
+- `correct_answer`: 0=A, 1=B, 2=C, 3=D / `difficulty_level`: 1=基礎, 2=応用, 3=上級
 
-- `categories`: カテゴリ（6 件）
-- `themes`: テーマ（25 件）
-- `questions`: 問題（80+件、目標 500 件）
-- `answer_history`: 回答履歴
-- `user_profiles`: ユーザープロフィール
-- `subscriptions`: サブスクリプション
+## コード構成の原則
 
-### RLS 状況
+- `src/lib/quizLogic.ts`: Supabase に依存しない純粋ロジック(必ずテストを書く)
+- `src/lib/quizApi.ts`: Supabase アクセスの唯一の窓口
+- `src/App.tsx`: 画面遷移(view の状態機械)のみ。ロジックを書かない
+- 関数型コンポーネント + Hooks のみ。1 ファイル 1 コンポーネント
 
-- テスト中のため`categories`, `themes`, `questions`の RLS は**無効化済み**
-- **本番運用時には必ず有効化する**
+## 守るべきルール(v1 の失敗の再発防止)
+
+1. **フォールバックデータ禁止**: DB 接続失敗時はエラー画面 + 再試行。ハードコードのカテゴリ/テーマ/問題データを追加しない
+2. **権限・制限判定はサーバー側**: is_premium / is_admin / 1 日制限はすべて RLS・RPC で担保。クライアント判定は表示の出し分けのみ
+3. **隠しコマンド禁止**: ロゴ連打での管理者化のようなバックドアを追加しない
+4. **キー管理**: anon key は `.env` のみ(公開前提キーなのでコミット可)。service_role キーは絶対にコミットしない
+5. **コミット前に `npm run build && npm test` を通す**(CI でも強制される)
 
 ## ビジネスモデル
 
-- **無料会員**: 1 日 10 問制限 + Google 広告表示
-- **プレミアム会員**: 無制限 + 広告なし + 高難度問題アクセス
+- 無料会員: 1 日 10 問 + 広告(広告は Phase 3 で実装)
+- プレミアム会員: 無制限 + 広告なし + `is_premium` 問題(Stripe 連携は Phase 3。未実装の間はデモ有効化などを実装しない)
 
-## 重要な設計判断
+## 現在のフェーズ
 
-1. **3 階層構造**: 京都検定の出題範囲が広いため、単純なカテゴリ分類では学習効率が低い
-2. **難易度 3 段階**: difficulty_level (1=基礎, 2=応用, 3=上級)で段階的学習を実現
-3. **is_premium フラグ**: 問題ごとにプレミアム限定を柔軟に管理
-4. **correct_answer**: 0=A, 1=B, 2=C, 3=D（整数で管理）
+Phase 1(MVP)実装済み: 認証(Google OAuth / Magic Link)・3 種の演習・回答履歴の DB 保存・統計表示・1 日 10 問制限
 
-## API キー管理
-
-Supabase URL: https://brtxljbxesbuxpstnejp.supabase.co
-
-ANON_KEY: （.env から読み込む）
-
-→ `supabaseClient.js` で一括管理。ソースに直書き禁止。
-
-## コンポーネント配置（推奨）
-
-src/
-
-├── components/
-
-│ ├── LoginScreen.tsx
-
-│ ├── Dashboard.tsx
-
-│ ├── ThemeSelector.tsx
-
-│ ├── QuestionScreen.tsx
-
-│ └── ...
-
-├── pages/
-
-├── hooks/
-
-├── utils/
-
-│ └── supabaseClient.js
-
-└── types/
-
-## コーディング規約
-
-- React Hooks 使用（クラスコンポーネント不使用）
-- TypeScript/JavaScript 混在は許容（段階的に統一）
-- 関数型コンポーネント必須
-- CSS Modules or ピュア CSS（Tailwind 不使用）
-
-## 詳細情報の参照先
-
-- **handoff.md**: 引き継ぎ資料（現在の問題・完了タスク・テスト結果）
-- **system-overview.md**: システム構成図・DB スキーマ・API 一覧
-- **Supabase URL**: https://app.supabase.com/
-
-## 本番環境への推移
-
-- **認証**: 現在のデモ認証から Supabase Auth OAuth へ移行予定
-- **RLS**: categories, themes, questions を有効化予定
-- **API キー**: 環境変数分離予定
-- **広告**: Google AdSense 実装予定
-
-## 次に実施すべき作業
-
-優先度順:
-
-1. UI/UX 修正（レスポンシブ・次へボタン）
-2. 問題データの大量追加（テーマ ID 4-25）
-3. 学習進捗の DB 保存
-4. Supabase Auth 実装
-5. Stripe 決済連携
+次の作業(`docs/requirements-v2.md` の Phase 2): 復習機能 → テーマ別正答率・弱点分析 → 管理画面 → 本番デプロイ(Vercel)
