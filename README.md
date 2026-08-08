@@ -1,69 +1,57 @@
-# React + TypeScript + Vite
+# 京都検定 3 級 Web 問題集アプリ
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+京都検定 3 級の合格を目指すユーザー向けのフリーミアム Web 問題集アプリです。
+全 534 問(6 カテゴリ × 24 テーマ)の演習問題を収録しています。
 
-Currently, two official plugins are available:
+要件・設計は **[docs/requirements-v2.md](docs/requirements-v2.md)** を参照してください。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 技術スタック
 
-## Expanding the ESLint configuration
+- React 19 + TypeScript + Vite
+- Supabase(PostgreSQL / Auth / RLS)
+- ピュア CSS(TailwindCSS 不使用)
+- Vitest + React Testing Library
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## セットアップ
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Supabase の接続情報は `.env` で管理しています(anon key は公開前提のキーのため
+リポジトリに含めています。service_role キーは絶対にコミットしないこと)。
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### DB マイグレーション
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+初回セットアップ時、および `docs/migration_v2.sql` が更新された場合は、
+Supabase SQL Editor で同ファイルを実行してください(冪等なので再実行可)。
+認証・回答履歴・1 日 10 問制限はこの SQL が前提です。
+
+## コマンド
+
+| コマンド | 内容 |
+|---|---|
+| `npm run dev` | 開発サーバー起動 |
+| `npm run build` | 型チェック + 本番ビルド |
+| `npm test` | テスト実行(単発) |
+| `npm run test:watch` | テスト実行(watch) |
+| `npm run lint` | ESLint |
+
+push / PR ごとに GitHub Actions(`.github/workflows/ci.yml`)で build + test が走ります。
+
+## ディレクトリ構成
+
+```
+src/
+├── components/     # 画面・UI 部品(1 ファイル 1 コンポーネント + 同名 .css)
+│   ├── auth/       # LoginScreen
+│   ├── common/     # LoadingScreen, ErrorScreen, LimitModal
+│   ├── dashboard/  # Dashboard
+│   └── quiz/       # ThemeSelector, QuizSetup, QuestionScreen, ResultScreen
+├── hooks/          # useAuth
+├── lib/            # supabaseClient, quizApi(DB アクセス), quizLogic(純粋ロジック), constants
+├── types/          # DB 型定義
+├── App.tsx         # 画面遷移(view の状態機械)のみ
+└── main.tsx        # エントリーポイント + ErrorBoundary
 ```

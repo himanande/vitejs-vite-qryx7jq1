@@ -1,0 +1,22 @@
+.error-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.error-card {
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 4px solid var(--color-error);
+}
+
+.error-message {
+  color: var(--color-text-muted);
+  word-break: break-word;
+}
